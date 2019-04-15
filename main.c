@@ -11,6 +11,7 @@
 #include <rte_mbuf.h>
 #include <rte_ether.h>
 #include <rte_ip.h>
+#include <rte_udp.h>
 
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
@@ -167,7 +168,11 @@ lcore_main(void)
                     ether_addr_copy(&tmp_hw_addr, &eth_hdr->d_addr);
 
                     if (buffer->packet_type & RTE_PTYPE_L3_IPV4) {
-                        struct ipv4_hdr *ip_hdr = rte_pktmbuf_mtod_offset(buffer, struct ipv4_hdr *, sizeof(struct ether_hdr));
+                        struct ipv4_hdr *ip_hdr = rte_pktmbuf_mtod_offset(
+                            buffer,
+                            struct ipv4_hdr *,
+                            sizeof(struct ether_hdr)
+                        );
                         printf("Packet %u (%u) %u.%u.%u.%u -> %u.%u.%u.%u\n", buf, ip_hdr->packet_id,
                             ip_hdr->src_addr & 0xff,
                             (ip_hdr->src_addr >> 8) & 0xff,
@@ -189,7 +194,23 @@ lcore_main(void)
                     }
 
                     if (buffer->packet_type & RTE_PTYPE_L4_UDP) {
+                        struct udp_hdr *udp_hdr = rte_pktmbuf_mtod_offset(
+                            buffer,
+                            struct udp_hdr *,
+                            sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr)
+                        );
+                        printf("Packet %u %u -> %u\n", buf,
+                            udp_hdr->src_port,
+                            udp_hdr->dst_port
+                        );
 
+                        // Switch ports
+                        const uint32_t tmp_udp_port = udp_hdr->src_port;
+                        udp_hdr->src_port = udp_hdr->dst_port;
+                        udp_hdr->dst_port = tmp_udp_port;
+
+                        // New checksum
+                        udp_hdr->dgram_cksum = 0;
                     }
 
                     // Enqueue buffer for sending
