@@ -9,8 +9,7 @@
 #include <rte_cycles.h>
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
-#include <rte_mbuf_ptype.h>
-#include <rte_net.h>
+#include <rte_ether.h>
 
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
@@ -86,12 +85,9 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
     /* Display the port MAC address. */
     struct ether_addr addr;
     rte_eth_macaddr_get(port, &addr);
-    printf("Port %u MAC: %02" PRIx8 " %02" PRIx8 " %02" PRIx8
-               " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 "\n",
-            port,
-            addr.addr_bytes[0], addr.addr_bytes[1],
-            addr.addr_bytes[2], addr.addr_bytes[3],
-            addr.addr_bytes[4], addr.addr_bytes[5]);
+    char addr_string[ETHER_ADDR_FMT_SIZE];
+    ether_format_addr(addr_string, ETHER_ADDR_FMT_SIZE, &addr);
+    printf("Port %u MAC: %s\n", port, addr_string);
 
     /* Enable RX in promiscuous mode for the Ethernet device. */
     rte_eth_promiscuous_enable(port);
@@ -141,20 +137,18 @@ lcore_main(void)
             printf("%u packets received on port %u\n", nb_rx, port);
             uint16_t buf;
             for (buf = 0; buf < nb_rx; buf++) {
-                struct rte_net_hdr_lens hdr_lens;
-                const uint32_t ptype = rte_net_get_ptype(bufs[buf], &hdr_lens, RTE_PTYPE_ALL_MASK);
-                const char *l2_name = rte_get_ptype_l2_name(ptype);
-                const char *l3_name = rte_get_ptype_l3_name(ptype);
-                const char *l4_name = rte_get_ptype_l4_name(ptype);
+                struct rte_mbuf *buffer = bufs[buf];
+                const char *l2_name = rte_get_ptype_l2_name(buffer->packet_type);
+                const char *l3_name = rte_get_ptype_l3_name(buffer->packet_type);
+                const char *l4_name = rte_get_ptype_l4_name(buffer->packet_type);
                 printf("Packet %u has types %s, %s, %s\n", buf, l2_name, l3_name, l4_name);
-                printf("Packet %u headers:\n", buf);
-                printf(" L2: %u\n", hdr_lens.l2_len);
-                printf(" L3: %u\n", hdr_lens.l3_len);
-                printf(" L4: %u\n", hdr_lens.l4_len);
-                printf(" Tunnel: %u\n", hdr_lens.tunnel_len);
-                printf(" Inner L2: %u\n", hdr_lens.inner_l2_len);
-                printf(" Inner L3: %u\n", hdr_lens.inner_l3_len);
-                printf(" Inner L4: %u\n", hdr_lens.inner_l4_len);
+                
+                struct ether_hdr *eth_hdr = rte_pktmbuf_mtod(buffer, struct eth_hdr *);
+                char s_addr[ETHER_ADDR_FMT_SIZE];
+                char d_addr[ETHER_ADDR_FMT_SIZE];
+                ether_format_addr(s_addr, ETHER_ADDR_FMT_SIZE, &eth_hdr->s_addr);
+                ether_format_addr(d_addr, ETHER_ADDR_FMT_SIZE, &eth_hdr->d_addr);
+                printf("Packet %u %s -> %s\n", buf, s_addr, d_addr);
             }
 
 
