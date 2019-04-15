@@ -141,12 +141,20 @@ lcore_main(void)
             printf("%u packets received on port %u\n", nb_rx, port);
             uint16_t buf;
             for (buf = 0; buf < nb_rx; buf++) {
-                struct rte_net_hdr_lens headers;
-                const uint32_t ptype = rte_net_get_ptype(bufs[buf], &headers, RTE_PTYPE_ALL_MASK);
+                struct rte_net_hdr_lens hdr_lens;
+                const uint32_t ptype = rte_net_get_ptype(bufs[buf], &hdr_lens, RTE_PTYPE_ALL_MASK);
                 const char *l2_name = rte_get_ptype_l2_name(ptype);
                 const char *l3_name = rte_get_ptype_l3_name(ptype);
                 const char *l4_name = rte_get_ptype_l4_name(ptype);
                 printf("Packet %u has types %s, %s, %s\n", buf, l2_name, l3_name, l4_name);
+                printf("Packet %u headers:\n", buf);
+                printf(" L2: %u\n", hdr_lens.l2_len);
+                printf(" L3: %u\n", hdr_lens.l3_len);
+                printf(" L4: %u\n", hdr_lens.l4_len);
+                printf(" Tunnel: %u\n", hdr_lens.tunnel_len);
+                printf(" Inner L2: %u\n", hdr_lens.inner_l2_len);
+                printf(" Inner L3: %u\n", hdr_lens.inner_l3_len);
+                printf(" Inner L4: %u\n", hdr_lens.inner_l4_len);
             }
 
 
@@ -154,7 +162,7 @@ lcore_main(void)
             const uint16_t nb_tx = rte_eth_tx_burst(port, 0,
                     bufs, nb_rx);
 
-            printf("%u packets sent to port %u\n", nb_tx, port);
+            printf("%u packets sent to port %u\n\n", nb_tx, port);
 
             /* Free any unsent packets. */
             if (unlikely(nb_tx < nb_rx)) {
