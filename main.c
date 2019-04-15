@@ -125,44 +125,63 @@ lcore_main(void)
          * Receive packets on a port and echo them
          */
         RTE_ETH_FOREACH_DEV(port) {
+            struct ether_addr port_addr;
+            rte_eth_macaddr_get(port, &port_addr);
 
             /* Get burst of RX packets. */
-            struct rte_mbuf *bufs[BURST_SIZE];
-            const uint16_t nb_rx = rte_eth_rx_burst(port, 0,
-                    bufs, BURST_SIZE);
+            struct rte_mbuf *rx_bufs[BURST_SIZE];
+            const uint16_t nb_rx = rte_eth_rx_burst(port, 0, rx_bufs, BURST_SIZE);
 
             if (unlikely(nb_rx == 0))
                 continue;
 
             printf("%u packets received on port %u\n", nb_rx, port);
-            uint16_t buf;
-            for (buf = 0; buf < nb_rx; buf++) {
-                struct rte_mbuf *buffer = bufs[buf];
+
+            struct rte_mbuf *tx_bufs[BURST_SIZE];
+            uint16_t nb_to_send = 0;
+
+            for (uint16_t buf = 0; buf < nb_rx; buf++) {
+                struct rte_mbuf *buffer = rx_bufs[buf];
                 const char *l2_name = rte_get_ptype_l2_name(buffer->packet_type);
                 const char *l3_name = rte_get_ptype_l3_name(buffer->packet_type);
                 const char *l4_name = rte_get_ptype_l4_name(buffer->packet_type);
                 printf("Packet %u has types %s, %s, %s\n", buf, l2_name, l3_name, l4_name);
                 
                 struct ether_hdr *eth_hdr = rte_pktmbuf_mtod(buffer, struct eth_hdr *);
+                            
                 char s_addr[ETHER_ADDR_FMT_SIZE];
                 char d_addr[ETHER_ADDR_FMT_SIZE];
                 ether_format_addr(s_addr, ETHER_ADDR_FMT_SIZE, &eth_hdr->s_addr);
                 ether_format_addr(d_addr, ETHER_ADDR_FMT_SIZE, &eth_hdr->d_addr);
                 printf("Packet %u %s -> %s\n", buf, s_addr, d_addr);
+
+                if (is_same_ether_addr(&port_addr, &eth_hdr->d_addr)) {
+                    /* Packet was for us */
+                    printf("Reflecting packet %u", buf);
+
+                    // Switch addresses
+                    struct ether_addr tmp_addr;
+                    ether_addr_copy(&eth_hdr->s_addr, &tmp_addr);
+                    ether_addr_copy(&eth_hdr->d_addr, &eth_hdr->s_addr);
+                    ether_addr_copy(&tmp_addr, &eth_hdr->d_addr);
+
+                    // Enqueue buffer for sending
+                    tx_bufs[nb_to_send] = buffer;
+                    nb_to_send++;
+                }
             }
 
 
             /* Send burst of TX packets, to same port */
-            const uint16_t nb_tx = rte_eth_tx_burst(port, 0,
-                    bufs, nb_rx);
+            const uint16_t nb_tx = rte_eth_tx_burst(port, 0, tx_bufs, nb_to_send);
 
-            printf("%u packets sent to port %u\n\n", nb_tx, port);
+            printf("%u packets sent over port %u\n\n", nb_tx, port);
 
             /* Free any unsent packets. */
-            if (unlikely(nb_tx < nb_rx)) {
-                uint16_t buf;
-                for (buf = nb_tx; buf < nb_rx; buf++)
-                    rte_pktmbuf_free(bufs[buf]);
+            if (unlikely(nb_tx < nb_to_send)) {
+                for (uint16_t buf = nb_tx; buf < nb_to_send; buf++) {
+                    rte_pktmbuf_free(tx_bufs[buf]);
+                }
             }
         }
     }
