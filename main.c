@@ -173,6 +173,8 @@ lcore_main(void)
                             struct ipv4_hdr *,
                             sizeof(struct ether_hdr)
                         );
+
+			uint8_t ip_hdr_len = (ip_hdr->version_ihl & IPV4_HDR_IHL_MASK) * IPV4_IHL_MULTIPLIER;
                         printf("L3: %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8" -> %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8" (ID: %"PRIu16")\n",
                             ip_hdr->src_addr & 0xff,
                             (ip_hdr->src_addr >> 8) & 0xff,
@@ -182,8 +184,10 @@ lcore_main(void)
                             (ip_hdr->dst_addr >> 8) & 0xff,
                             (ip_hdr->dst_addr >> 16) & 0xff,
                             ip_hdr->dst_addr >> 24,
-                            ip_hdr->packet_id
+                            rte_be_to_cpu_16(ip_hdr->packet_id)
                         );
+
+			printf("buffer->l3_len: %u, ip_hdr_len: %u, sizeof: %lu\n", buffer->l3_len, ip_hdr_len, sizeof(struct ipv4_hdr));
 
                         // Switch IP addresses
                         const uint32_t tmp_ip_addr = ip_hdr->src_addr;
@@ -197,12 +201,12 @@ lcore_main(void)
                             struct udp_hdr *udp_hdr = rte_pktmbuf_mtod_offset(
                                 buffer,
                                 struct udp_hdr *,
-                                sizeof(struct ether_hdr) + ((ip_hdr->version_ihl) & 0xf) * 4
+                                sizeof(struct ether_hdr) + ip_hdr_len
                             );
                             printf("L4: %"PRIu16" -> %"PRIu16" (length: %"PRIu16")\n",
-                                udp_hdr->src_port,
-                                udp_hdr->dst_port,
-                                udp_hdr->dgram_len
+                                rte_be_to_cpu_16(udp_hdr->src_port),
+                                rte_be_to_cpu_16(udp_hdr->dst_port),
+                                rte_be_to_cpu_16(udp_hdr->dgram_len)
                             );
 
                             // Switch ports
@@ -215,7 +219,7 @@ lcore_main(void)
                         }
                     }
 
-                    buffer->ol_flags |= (PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM);
+                    buffer->ol_flags |= (PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM | PKT_TX_IPV4);
 
                     // Enqueue buffer for sending
                     tx_bufs[nb_to_send] = buffer;
