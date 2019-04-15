@@ -124,18 +124,19 @@ lcore_main(void)
 	/* Run until the application is quit or killed. */
 	for (;;) {
 		/*
-		 * Receive packets on a port and forward them on the paired
-		 * port. The mapping is 0 -> 1, 1 -> 0, 2 -> 3, 3 -> 2, etc.
+		 * Receive packets on a port and echo them
 		 */
 		RTE_ETH_FOREACH_DEV(port) {
 
-			/* Get burst of RX packets, from first port of pair. */
+			/* Get burst of RX packets. */
 			struct rte_mbuf *bufs[BURST_SIZE];
 			const uint16_t nb_rx = rte_eth_rx_burst(port, 0,
 					bufs, BURST_SIZE);
 
 			if (unlikely(nb_rx == 0))
 				continue;
+
+			printf("%u packets received on port %u\n", nb_rx, port);
 
 			/* Send burst of TX packets, to same port */
 			const uint16_t nb_tx = rte_eth_tx_burst(port, 0,
