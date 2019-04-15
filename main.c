@@ -10,6 +10,7 @@
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
 #include <rte_ether.h>
+#include <rte_ip.h>
 
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
@@ -140,6 +141,10 @@ lcore_main(void)
 
             for (uint16_t buf = 0; buf < nb_rx; buf++) {
                 struct rte_mbuf *buffer = rx_bufs[buf];
+
+                if (!(buffer->packet_type & RTE_PTYPE_L2_ETHER)) {
+                    continue;
+                }
                 
                 struct ether_hdr *eth_hdr = rte_pktmbuf_mtod(buffer, struct ether_hdr *);
 
@@ -149,18 +154,43 @@ lcore_main(void)
                     char d_addr[ETHER_ADDR_FMT_SIZE];
                     ether_format_addr(s_addr, ETHER_ADDR_FMT_SIZE, &eth_hdr->s_addr);
                     ether_format_addr(d_addr, ETHER_ADDR_FMT_SIZE, &eth_hdr->d_addr);
-                    printf("\nPacket %u %s -> %s\n", buf, s_addr, d_addr);
 
-                    const char *l2_name = rte_get_ptype_l2_name(buffer->packet_type);
-                    const char *l3_name = rte_get_ptype_l3_name(buffer->packet_type);
-                    const char *l4_name = rte_get_ptype_l4_name(buffer->packet_type);
-                    printf("Packet %u has types %s, %s, %s\n", buf, l2_name, l3_name, l4_name);
+                    char type_name[64];
+                    rte_get_ptype_name(buffer->packet_type, type_name, 64);
+                    printf("\nPacket %u has type %s\n", buf, type_name);
+                    printf("Packet %u %s -> %s\n", buf, s_addr, d_addr);
 
-                    // Switch addresses
-                    struct ether_addr tmp_addr;
-                    ether_addr_copy(&eth_hdr->s_addr, &tmp_addr);
+                    // Switch hardware addresses
+                    struct ether_addr tmp_hw_addr;
+                    ether_addr_copy(&eth_hdr->s_addr, &tmp_hw_addr);
                     ether_addr_copy(&eth_hdr->d_addr, &eth_hdr->s_addr);
-                    ether_addr_copy(&tmp_addr, &eth_hdr->d_addr);
+                    ether_addr_copy(&tmp_hw_addr, &eth_hdr->d_addr);
+
+                    if (buffer->packet_type & RTE_PTYPE_L3_IPV4) {
+                        struct ipv4_hdr *ip_hdr = rte_pktmbuf_mtod_offset(buffer, struct ipv4_hdr *, sizeof(struct ether_hdr));
+                        printf("Packet %u (%u) %u.%u.%u.%u -> %u.%u.%u.%u\n", buf, ip_hdr->packet_id,
+                            ip_hdr->src_addr & 0xff,
+                            (ip_hdr->src_addr >> 8) & 0xff,
+                            (ip_hdr->src_addr >> 16) & 0xff,
+                            ip_hdr->src_addr >> 24,
+                            ip_hdr->dst_addr & 0xff,
+                            (ip_hdr->dst_addr >> 8) & 0xff,
+                            (ip_hdr->dst_addr >> 16) & 0xff,
+                            ip_hdr->dst_addr >> 24
+                        );
+
+                        // Switch IP addresses
+                        const uint32_t tmp_ip_addr = ip_hdr->src_addr;
+                        ip_hdr->src_addr = ip_hdr->dst_addr;
+                        ip_hdr->dst_addr = tmp_ip_addr;
+
+                        // New checksum
+                        ip_hdr->hdr_checksum = 0;
+                    }
+
+                    if (buffer->packet_type & RTE_PTYPE_L4_UDP) {
+
+                    }
 
                     // Enqueue buffer for sending
                     tx_bufs[nb_to_send] = buffer;
