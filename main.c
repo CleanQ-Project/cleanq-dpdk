@@ -135,15 +135,13 @@ lcore_main(void)
             if (unlikely(nb_rx == 0))
                 continue;
 
-            printf("%u packets received on port %u\n", nb_rx, port);
-
             struct rte_mbuf *tx_bufs[BURST_SIZE];
             uint16_t nb_to_send = 0;
 
             for (uint16_t buf = 0; buf < nb_rx; buf++) {
                 struct rte_mbuf *buffer = rx_bufs[buf];
                 
-                struct ether_hdr *eth_hdr = rte_pktmbuf_mtod(buffer, struct eth_hdr *);
+                struct ether_hdr *eth_hdr = rte_pktmbuf_mtod(buffer, struct ether_hdr *);
 
                 if (is_same_ether_addr(&port_addr, &eth_hdr->d_addr)) {
                     /* Packet was for us */
@@ -151,8 +149,8 @@ lcore_main(void)
                     char d_addr[ETHER_ADDR_FMT_SIZE];
                     ether_format_addr(s_addr, ETHER_ADDR_FMT_SIZE, &eth_hdr->s_addr);
                     ether_format_addr(d_addr, ETHER_ADDR_FMT_SIZE, &eth_hdr->d_addr);
-                    printf("Packet %u %s -> %s\n", buf, s_addr, d_addr);
-                    
+                    printf("\nPacket %u %s -> %s\n", buf, s_addr, d_addr);
+
                     const char *l2_name = rte_get_ptype_l2_name(buffer->packet_type);
                     const char *l3_name = rte_get_ptype_l3_name(buffer->packet_type);
                     const char *l4_name = rte_get_ptype_l4_name(buffer->packet_type);
@@ -168,18 +166,22 @@ lcore_main(void)
                     tx_bufs[nb_to_send] = buffer;
                     nb_to_send++;
                 }
+                else {
+                    rte_pktmbuf_free(buffer);
+                }
             }
 
+            if (nb_to_send > 0) {
+                /* Send burst of TX packets, to same port */
+                const uint16_t nb_tx = rte_eth_tx_burst(port, 0, tx_bufs, nb_to_send);
 
-            /* Send burst of TX packets, to same port */
-            const uint16_t nb_tx = rte_eth_tx_burst(port, 0, tx_bufs, nb_to_send);
+                printf("%u packets sent over port %u\n", nb_tx, port);
 
-            printf("%u packets sent over port %u\n\n", nb_tx, port);
-
-            /* Free any unsent packets. */
-            if (unlikely(nb_tx < nb_to_send)) {
-                for (uint16_t buf = nb_tx; buf < nb_to_send; buf++) {
-                    rte_pktmbuf_free(tx_bufs[buf]);
+                /* Free any unsent packets. */
+                if (unlikely(nb_tx < nb_to_send)) {
+                    for (uint16_t buf = nb_tx; buf < nb_to_send; buf++) {
+                        rte_pktmbuf_free(tx_bufs[buf]);
+                    }
                 }
             }
         }
