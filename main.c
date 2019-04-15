@@ -174,7 +174,7 @@ lcore_main(void)
                             sizeof(struct ether_hdr)
                         );
 
-			uint8_t ip_hdr_len = (ip_hdr->version_ihl & IPV4_HDR_IHL_MASK) * IPV4_IHL_MULTIPLIER;
+			            uint8_t ip_hdr_len = (ip_hdr->version_ihl & IPV4_HDR_IHL_MASK) * IPV4_IHL_MULTIPLIER;
                         printf("L3: %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8" -> %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8" (ID: %"PRIu16")\n",
                             ip_hdr->src_addr & 0xff,
                             (ip_hdr->src_addr >> 8) & 0xff,
@@ -187,14 +187,12 @@ lcore_main(void)
                             rte_be_to_cpu_16(ip_hdr->packet_id)
                         );
 
-			printf("buffer->l3_len: %u, ip_hdr_len: %u, sizeof: %lu\n", buffer->l3_len, ip_hdr_len, sizeof(struct ipv4_hdr));
-
                         // Switch IP addresses
                         const uint32_t tmp_ip_addr = ip_hdr->src_addr;
                         ip_hdr->src_addr = ip_hdr->dst_addr;
                         ip_hdr->dst_addr = tmp_ip_addr;
 
-                        // New checksum
+                        // Zero checksum
                         ip_hdr->hdr_checksum = 0;
 
                         if (buffer->packet_type & RTE_PTYPE_L4_UDP) {
@@ -216,10 +214,12 @@ lcore_main(void)
 
                             // New checksum
                             udp_hdr->dgram_cksum = 0;
+                            udp_hdr->dgram_cksum = rte_ipv4_udptcp_cksum(ip_hdr, udp_hdr);
                         }
-                    }
 
-                    buffer->ol_flags |= (PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM | PKT_TX_IPV4);
+                        // New checksum
+                        ip_hdr->hdr_checksum = rte_ipv4_cksum(ip_hdr);
+                    }
 
                     // Enqueue buffer for sending
                     tx_bufs[nb_to_send] = buffer;
