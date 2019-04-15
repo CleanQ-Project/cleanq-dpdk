@@ -159,7 +159,7 @@ lcore_main(void)
                     char type_name[64];
                     rte_get_ptype_name(buffer->packet_type, type_name, 64);
                     printf("\nPacket %u has type %s\n", buf, type_name);
-                    printf("Packet %u %s -> %s\n", buf, s_addr, d_addr);
+                    printf("L2: %s -> %s\n", s_addr, d_addr);
 
                     // Switch hardware addresses
                     struct ether_addr tmp_hw_addr;
@@ -173,7 +173,7 @@ lcore_main(void)
                             struct ipv4_hdr *,
                             sizeof(struct ether_hdr)
                         );
-                        printf("Packet %u (%u) %u.%u.%u.%u -> %u.%u.%u.%u\n", buf, ip_hdr->packet_id,
+                        printf("L3: %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8" -> %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8" (ID: %"PRIu16")\n",
                             ip_hdr->src_addr & 0xff,
                             (ip_hdr->src_addr >> 8) & 0xff,
                             (ip_hdr->src_addr >> 16) & 0xff,
@@ -181,7 +181,8 @@ lcore_main(void)
                             ip_hdr->dst_addr & 0xff,
                             (ip_hdr->dst_addr >> 8) & 0xff,
                             (ip_hdr->dst_addr >> 16) & 0xff,
-                            ip_hdr->dst_addr >> 24
+                            ip_hdr->dst_addr >> 24,
+                            ip_hdr->packet_id
                         );
 
                         // Switch IP addresses
@@ -191,27 +192,30 @@ lcore_main(void)
 
                         // New checksum
                         ip_hdr->hdr_checksum = 0;
+
+                        if (buffer->packet_type & RTE_PTYPE_L4_UDP) {
+                            struct udp_hdr *udp_hdr = rte_pktmbuf_mtod_offset(
+                                buffer,
+                                struct udp_hdr *,
+                                sizeof(struct ether_hdr) + ((ip_hdr->version_ihl) & 0xf) * 4
+                            );
+                            printf("L4: %"PRIu16" -> %"PRIu16" (length: %"PRIu16")\n",
+                                udp_hdr->src_port,
+                                udp_hdr->dst_port,
+                                udp_hdr->dgram_len
+                            );
+
+                            // Switch ports
+                            const uint32_t tmp_udp_port = udp_hdr->src_port;
+                            udp_hdr->src_port = udp_hdr->dst_port;
+                            udp_hdr->dst_port = tmp_udp_port;
+
+                            // New checksum
+                            udp_hdr->dgram_cksum = 0;
+                        }
                     }
 
-                    if (buffer->packet_type & RTE_PTYPE_L4_UDP) {
-                        struct udp_hdr *udp_hdr = rte_pktmbuf_mtod_offset(
-                            buffer,
-                            struct udp_hdr *,
-                            sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr)
-                        );
-                        printf("Packet %u %u -> %u\n", buf,
-                            udp_hdr->src_port,
-                            udp_hdr->dst_port
-                        );
-
-                        // Switch ports
-                        const uint32_t tmp_udp_port = udp_hdr->src_port;
-                        udp_hdr->src_port = udp_hdr->dst_port;
-                        udp_hdr->dst_port = tmp_udp_port;
-
-                        // New checksum
-                        udp_hdr->dgram_cksum = 0;
-                    }
+                    buffer->ol_flags |= (PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM);
 
                     // Enqueue buffer for sending
                     tx_bufs[nb_to_send] = buffer;
