@@ -142,22 +142,21 @@ lcore_main(void)
 
             for (uint16_t buf = 0; buf < nb_rx; buf++) {
                 struct rte_mbuf *buffer = rx_bufs[buf];
-                const char *l2_name = rte_get_ptype_l2_name(buffer->packet_type);
-                const char *l3_name = rte_get_ptype_l3_name(buffer->packet_type);
-                const char *l4_name = rte_get_ptype_l4_name(buffer->packet_type);
-                printf("Packet %u has types %s, %s, %s\n", buf, l2_name, l3_name, l4_name);
                 
                 struct ether_hdr *eth_hdr = rte_pktmbuf_mtod(buffer, struct eth_hdr *);
-                            
-                char s_addr[ETHER_ADDR_FMT_SIZE];
-                char d_addr[ETHER_ADDR_FMT_SIZE];
-                ether_format_addr(s_addr, ETHER_ADDR_FMT_SIZE, &eth_hdr->s_addr);
-                ether_format_addr(d_addr, ETHER_ADDR_FMT_SIZE, &eth_hdr->d_addr);
-                printf("Packet %u %s -> %s\n", buf, s_addr, d_addr);
 
                 if (is_same_ether_addr(&port_addr, &eth_hdr->d_addr)) {
                     /* Packet was for us */
-                    printf("Reflecting packet %u", buf);
+                    char s_addr[ETHER_ADDR_FMT_SIZE];
+                    char d_addr[ETHER_ADDR_FMT_SIZE];
+                    ether_format_addr(s_addr, ETHER_ADDR_FMT_SIZE, &eth_hdr->s_addr);
+                    ether_format_addr(d_addr, ETHER_ADDR_FMT_SIZE, &eth_hdr->d_addr);
+                    printf("Packet %u %s -> %s\n", buf, s_addr, d_addr);
+                    
+                    const char *l2_name = rte_get_ptype_l2_name(buffer->packet_type);
+                    const char *l3_name = rte_get_ptype_l3_name(buffer->packet_type);
+                    const char *l4_name = rte_get_ptype_l4_name(buffer->packet_type);
+                    printf("Packet %u has types %s, %s, %s\n", buf, l2_name, l3_name, l4_name);
 
                     // Switch addresses
                     struct ether_addr tmp_addr;
