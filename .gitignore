@@ -1,3 +1,5 @@
+build
+
 # DPDK
-dpdk-stable-18.11.1/x86_64-native-linuxapp-gcc
+dpdk-stable-18.11.1/**/x86_64-native-linuxapp-gcc
 dpdk-stable-18.11.1/**/build
