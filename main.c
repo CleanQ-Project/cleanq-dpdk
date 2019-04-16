@@ -151,6 +151,12 @@ lcore_main(void)
 
                 if (is_same_ether_addr(&port_addr, &eth_hdr->d_addr)) {
                     /* Packet was for us */
+                    printf("\nPacket %"PRIu16"/%"PRIu16" received on port %"PRIu16"\n",
+                        buf,
+                        nb_rx,
+                        port
+                    );
+
                     char s_addr[ETHER_ADDR_FMT_SIZE];
                     char d_addr[ETHER_ADDR_FMT_SIZE];
                     ether_format_addr(s_addr, ETHER_ADDR_FMT_SIZE, &eth_hdr->s_addr);
@@ -158,8 +164,9 @@ lcore_main(void)
 
                     char type_name[64];
                     rte_get_ptype_name(buffer->packet_type, type_name, 64);
-                    printf("\nPacket %u has type %s\n", buf, type_name);
-                    printf("L2: %s -> %s\n", s_addr, d_addr);
+                    printf("Type: %s\n", type_name);
+
+                    printf("MAC: %s -> %s\n", s_addr, d_addr);
 
                     // Switch hardware addresses
                     struct ether_addr tmp_hw_addr;
@@ -175,7 +182,9 @@ lcore_main(void)
                         );
 
 			            uint8_t ip_hdr_len = (ip_hdr->version_ihl & IPV4_HDR_IHL_MASK) * IPV4_IHL_MULTIPLIER;
-                        printf("L3: %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8" -> %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8" (ID: %"PRIu16")\n",
+                        printf(
+                            "IP: %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8" -> "
+                            "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8" (ID: %"PRIu16")\n",
                             ip_hdr->src_addr & 0xff,
                             (ip_hdr->src_addr >> 8) & 0xff,
                             (ip_hdr->src_addr >> 16) & 0xff,
@@ -201,7 +210,7 @@ lcore_main(void)
                                 struct udp_hdr *,
                                 sizeof(struct ether_hdr) + ip_hdr_len
                             );
-                            printf("L4: %"PRIu16" -> %"PRIu16" (length: %"PRIu16")\n",
+                            printf("UDP: %"PRIu16" -> %"PRIu16" (length: %"PRIu16")\n",
                                 rte_be_to_cpu_16(udp_hdr->src_port),
                                 rte_be_to_cpu_16(udp_hdr->dst_port),
                                 rte_be_to_cpu_16(udp_hdr->dgram_len)
@@ -234,7 +243,7 @@ lcore_main(void)
                 /* Send burst of TX packets, to same port */
                 const uint16_t nb_tx = rte_eth_tx_burst(port, 0, tx_bufs, nb_to_send);
 
-                printf("%u packets sent over port %u\n", nb_tx, port);
+                printf("%"PRIu16" packets sent over port %"PRIu16"\n", nb_tx, port);
 
                 /* Free any unsent packets. */
                 if (unlikely(nb_tx < nb_to_send)) {
