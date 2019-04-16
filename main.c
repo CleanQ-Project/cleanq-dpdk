@@ -143,7 +143,8 @@ lcore_main(void)
             for (uint16_t buf = 0; buf < nb_rx; buf++) {
                 struct rte_mbuf *buffer = rx_bufs[buf];
 
-                if (!(buffer->packet_type & RTE_PTYPE_L2_ETHER)) {
+                if (unlikely(!(buffer->packet_type & RTE_PTYPE_L2_ETHER))) {
+                    rte_pktmbuf_free(buffer);
                     continue;
                 }
                 
