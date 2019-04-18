@@ -1950,7 +1950,9 @@ ixgbe_rx_cleanq_enqueue(struct ixgbe_rx_queue *rxq, struct rte_mbuf *mb) {
 	rxdp->read.hdr_addr = 0;
 	rxdp->read.pkt_addr = dma_addr;
 
-	hw_tail = (uint16_t)hw_tail + 1;
+	PMD_CLEANQ_LOG(INFO, "RX: Enqueued buffer %"PRIu16"", hw_tail);
+
+	hw_tail = (uint16_t) hw_tail + 1;
 	if (hw_tail >= rxq->nb_rx_desc) {
 		hw_tail = 0;
 	}
@@ -1958,8 +1960,6 @@ ixgbe_rx_cleanq_enqueue(struct ixgbe_rx_queue *rxq, struct rte_mbuf *mb) {
 	rte_wmb();
 
 	IXGBE_PCI_REG_WRITE_RELAXED(rxq->rdt_reg_addr, hw_tail);
-
-	PMD_CLEANQ_LOG(INFO, "RX: Enqueued buffer (%p)", mb);
 }
 
 static inline bool
@@ -2017,12 +2017,12 @@ ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_mb)
 			rxdp->wb.lower.hi_dword.csum_ip.ip_id);
 	}
 
+	PMD_CLEANQ_LOG(INFO, "RX: Dequeued buffer %"PRIu16, rxq->rx_tail);
+
 	rxq->rx_tail = (uint16_t)(rxq->rx_tail + 1);
 	if (rxq->rx_tail >= rxq->nb_rx_desc) {
 		rxq->rx_tail = 0;
 	}
-
-	PMD_CLEANQ_LOG(INFO, "RX: Dequeued buffer (%p)", mb);
 
 	*ret_mb = mb;
 	return true;
