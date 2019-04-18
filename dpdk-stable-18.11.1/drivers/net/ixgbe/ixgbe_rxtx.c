@@ -1950,12 +1950,16 @@ ixgbe_rx_cleanq_enqueue(struct ixgbe_rx_queue *rxq, struct rte_mbuf *mb) {
 	rxdp->read.hdr_addr = 0;
 	rxdp->read.pkt_addr = dma_addr;
 
+	hw_tail = (uint16_t)hw_tail + 1;
+	if (hw_tail >= rxq->nb_rx_desc) {
+		hw_tail = 0;
+	}
+
 	rte_wmb();
 
-	hw_tail = (uint16_t)hw_tail + 1;
 	IXGBE_PCI_REG_WRITE_RELAXED(rxq->rdt_reg_addr, hw_tail);
 
-	PMD_CLEANQ_LOG(INFO, "Enqueued packet to refill (%p)", mb);
+	PMD_CLEANQ_LOG(INFO, "RX: Enqueued buffer (%p)", mb);
 }
 
 static inline bool
@@ -1980,7 +1984,7 @@ ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_mb)
 
 	/* Check whether there is a packet to receive */
 	if (!(status & IXGBE_RXDADV_STAT_DD)) {
-		PMD_CLEANQ_LOG(DEBUG, "Nothing to reveive (%"PRIx32")", status);
+		PMD_CLEANQ_LOG(DEBUG, "RX: No buffer to dequeue (%"PRIx32")", status);
 		return false;
 	}
 
@@ -2014,8 +2018,11 @@ ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_mb)
 	}
 
 	rxq->rx_tail = (uint16_t)(rxq->rx_tail + 1);
+	if (rxq->rx_tail >= rxq->nb_rx_desc) {
+		rxq->rx_tail = 0;
+	}
 
-	PMD_CLEANQ_LOG(INFO, "Dequeued packet to reveive (%p)", mb);
+	PMD_CLEANQ_LOG(INFO, "RX: Dequeued buffer (%p)", mb);
 
 	*ret_mb = mb;
 	return true;
@@ -2042,13 +2049,12 @@ ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 			}
 
 			ixgbe_rx_cleanq_enqueue(rxq, mb);
-		}
 
-		rxq->rx_free_trigger = rxq->rx_free_trigger + rxq->rx_free_thresh;
-		if (rxq->rx_free_trigger >= rxq->nb_rx_desc) {
-			rxq->rx_free_trigger = rxq->rx_free_thresh - 1;
-		}
-		
+			rxq->rx_free_trigger = rxq->rx_free_trigger + 1;
+			if (rxq->rx_free_trigger >= rxq->nb_rx_desc) {
+				rxq->rx_free_trigger = 0;
+			}
+		}		
 	}
 
 	uint16_t nb_rx = 0;
