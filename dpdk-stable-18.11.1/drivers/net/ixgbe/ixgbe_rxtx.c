@@ -49,6 +49,7 @@
 #include "ixgbe_ethdev.h"
 #include "base/ixgbe_dcb.h"
 #include "base/ixgbe_common.h"
+#include "cleanq/ixgbe_cleanq.h"
 #include "ixgbe_rxtx.h"
 
 #ifdef RTE_LIBRTE_IEEE1588
@@ -1921,6 +1922,67 @@ ixgbe_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 	}
 	rxq->nb_rx_hold = nb_hold;
 	return nb_rx;
+}
+
+static uint16_t
+ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
+	     uint16_t nb_pkts)
+{
+	struct ixgbe_rx_queue *rxq = (struct ixgbe_rx_queue *)rx_queue;
+	uint16_t nb_rx = 0;
+
+	/* Any previously recv'd pkts will be returned from the Rx stage */
+	if (rxq->rx_nb_avail)
+		return ixgbe_rx_fill_from_stage(rxq, rx_pkts, nb_pkts);
+
+	/* Scan the H/W ring for packets to receive */
+	nb_rx = (uint16_t)ixgbe_rx_scan_hw_ring(rxq);
+
+	/* update internal queue state */
+	rxq->rx_next_avail = 0;
+	rxq->rx_nb_avail = nb_rx;
+	rxq->rx_tail = (uint16_t)(rxq->rx_tail + nb_rx);
+
+	/* if required, allocate new buffers to replenish descriptors */
+	if (rxq->rx_tail > rxq->rx_free_trigger) {
+		uint16_t cur_free_trigger = rxq->rx_free_trigger;
+
+		if (ixgbe_rx_alloc_bufs(rxq, true) != 0) {
+			int i, j;
+
+			PMD_RX_LOG(DEBUG, "RX mbuf alloc failed port_id=%u "
+				   "queue_id=%u", (unsigned) rxq->port_id,
+				   (unsigned) rxq->queue_id);
+
+			rte_eth_devices[rxq->port_id].data->rx_mbuf_alloc_failed +=
+				rxq->rx_free_thresh;
+
+			/*
+			 * Need to rewind any previous receives if we cannot
+			 * allocate new buffers to replenish the old ones.
+			 */
+			rxq->rx_nb_avail = 0;
+			rxq->rx_tail = (uint16_t)(rxq->rx_tail - nb_rx);
+			for (i = 0, j = rxq->rx_tail; i < nb_rx; ++i, ++j)
+				rxq->sw_ring[j].mbuf = rxq->rx_stage[i];
+
+			return 0;
+		}
+
+		/* update tail pointer */
+		rte_wmb();
+		IXGBE_PCI_REG_WRITE_RELAXED(rxq->rdt_reg_addr,
+					    cur_free_trigger);
+	}
+
+	if (rxq->rx_tail >= rxq->nb_rx_desc)
+		rxq->rx_tail = 0;
+
+	/* received any packets this loop? */
+	if (rxq->rx_nb_avail)
+		return ixgbe_rx_fill_from_stage(rxq, rx_pkts, nb_pkts);
+
+	return 0;
 }
 
 /**
@@ -4570,6 +4632,11 @@ ixgbe_set_ivar(struct rte_eth_dev *dev, u8 entry, u8 vector, s8 type)
 void __attribute__((cold))
 ixgbe_set_rx_function(struct rte_eth_dev *dev)
 {
+#ifdef IXGBE_USE_CLEANQ
+	dev->rx_pkt_burst = ixgbe_recv_pkts_cleanq;
+	return;
+#endif
+	
 	uint16_t i, rx_using_sse;
 	struct ixgbe_adapter *adapter =
 		(struct ixgbe_adapter *)dev->data->dev_private;
