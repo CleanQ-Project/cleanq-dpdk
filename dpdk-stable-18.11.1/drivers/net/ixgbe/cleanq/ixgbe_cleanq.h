@@ -12,6 +12,11 @@
 
 #define IXGBE_USE_CLEANQ
 
+extern int ixgbe_logtype_cleanq;
+#define PMD_CLEANQ_LOG(level, fmt, args...) \
+	rte_log(RTE_LOG_ ## level, ixgbe_logtype_cleanq, \
+		"%s(): " fmt "\n", __func__, ##args)
+
 /**
  * Structure associated with each RX queue.
  */

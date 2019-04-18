@@ -1947,6 +1947,7 @@ ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_mb)
 
 	/* check to make sure there is at least 1 packet to receive */
 	if (!(status & IXGBE_RXDADV_STAT_DD)) {
+		PMD_CLEANQ_LOG(DEBUG, "Nothing to reveive (%"PRIx32")", status);
 		return false;
 	}
 
@@ -1979,6 +1980,8 @@ ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_mb)
 			rxdp->wb.lower.hi_dword.csum_ip.ip_id);
 	}
 
+	rxq->rx_tail = (uint16_t)(rxq->rx_tail + 1);
+
 	*ret_mb = mb;
 	return true;
 }
@@ -1998,10 +2001,7 @@ ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 		return 0;
 	}
 
-	/* update internal queue state */
-	rxq->rx_next_avail = 0;
-	rxq->rx_nb_avail = 0;
-	rxq->rx_tail = (uint16_t)(rxq->rx_tail + 1);
+	PMD_CLEANQ_LOG(DEBUG, "Dequeued packet to reveive (%p)", rx_pkt);
 
 	/* if required, allocate new buffers to replenish descriptors */
 	if (rxq->rx_tail > rxq->rx_free_trigger) {
