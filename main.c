@@ -148,20 +148,19 @@ lcore_main(void)
                     continue;
                 }
                 
-                printf("\nPacket %"PRIu16"/%"PRIu16" received on port %"PRIu16"\n",
-                    buf,
-                    nb_rx,
-                    port
-                );
-
-                char type_name[64];
-                rte_get_ptype_name(buffer->packet_type, type_name, 64);
-                printf("Type: %s\n", type_name);
-                
                 struct ether_hdr *eth_hdr = rte_pktmbuf_mtod(buffer, struct ether_hdr *);
 
                 if (is_same_ether_addr(&port_addr, &eth_hdr->d_addr)) {
                     /* Packet was for us */
+                    printf("\nPacket %"PRIu16"/%"PRIu16" received on port %"PRIu16"\n",
+                        buf,
+                        nb_rx,
+                        port
+                    );
+
+                    char type_name[64];
+                    rte_get_ptype_name(buffer->packet_type, type_name, 64);
+                    printf("Type: %s\n", type_name);
 
                     char s_addr[ETHER_ADDR_FMT_SIZE];
                     char d_addr[ETHER_ADDR_FMT_SIZE];

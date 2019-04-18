@@ -1925,6 +1925,37 @@ ixgbe_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 }
 
 #ifdef IXGBE_USE_CLEANQ
+static inline void
+ixgbe_rx_cleanq_enqueue(struct ixgbe_rx_queue *rxq, struct rte_mbuf *mb) {
+	uint16_t hw_tail;
+	volatile union ixgbe_adv_rx_desc *rxdp;
+	struct ixgbe_rx_entry *rxep;
+	__le64 dma_addr;
+
+	hw_tail = IXGBE_PCI_REG(rxq->rdt_reg_addr);
+
+	rte_smp_rmb();
+
+	rxep = &rxq->sw_ring[hw_tail];
+	rxdp = &rxq->rx_ring[hw_tail];
+	
+	/* populate the static rte mbuf fields */
+	mb->port = rxq->port_id;
+	rte_mbuf_refcnt_set(mb, 1);
+	mb->data_off = RTE_PKTMBUF_HEADROOM;
+	rxep->mbuf = mb;
+
+ 	/* populate the descriptor */
+	dma_addr = rte_cpu_to_le_64(rte_mbuf_data_iova_default(mb));
+	rxdp->read.hdr_addr = 0;
+	rxdp->read.pkt_addr = dma_addr;
+
+	rte_wmb();
+
+	hw_tail = (uint16_t)hw_tail + 1;
+	IXGBE_PCI_REG_WRITE_RELAXED(rxq->rdt_reg_addr, hw_tail);
+}
+
 static inline bool
 ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_mb)
 {
@@ -1945,7 +1976,7 @@ ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_mb)
 	
 	rte_smp_rmb();
 
-	/* check to make sure there is at least 1 packet to receive */
+	/* Check whether there is a packet to receive */
 	if (!(status & IXGBE_RXDADV_STAT_DD)) {
 		PMD_CLEANQ_LOG(DEBUG, "Nothing to reveive (%"PRIx32")", status);
 		return false;
@@ -1982,6 +2013,8 @@ ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_mb)
 
 	rxq->rx_tail = (uint16_t)(rxq->rx_tail + 1);
 
+	PMD_CLEANQ_LOG(INFO, "Dequeued packet to reveive (%p)", mb);
+
 	*ret_mb = mb;
 	return true;
 }
@@ -1990,54 +2023,32 @@ static uint16_t
 ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 	     uint16_t nb_pkts)
 {
-	if (nb_pkts < 1)
-		return 0;
-	
 	struct ixgbe_rx_queue *rxq = (struct ixgbe_rx_queue *)rx_queue;
-	struct rte_mbuf *rx_pkt;
+	
+	/* Refill buffers */
+	struct rte_mbuf *mb;
+	if(!rte_mempool_get(rxq->mb_pool, (void **)&mb)) {
+		PMD_CLEANQ_LOG(NOTICE, "RX mbuf alloc failed port_id=%u "
+			"queue_id=%u", (unsigned) rxq->port_id,
+			(unsigned) rxq->queue_id);
 
-	/* Try to dequeue */
-	if(!ixgbe_rx_cleanq_dequeue(rxq, &rx_pkt)) {
+		rte_eth_devices[rxq->port_id].data->rx_mbuf_alloc_failed +=
+			rxq->rx_free_thresh;
 		return 0;
 	}
 
-	PMD_CLEANQ_LOG(INFO, "Dequeued packet to reveive (%p)", rx_pkt);
+	ixgbe_rx_cleanq_enqueue(rxq, mb);
 
-	/* if required, allocate new buffers to replenish descriptors */
-	if (rxq->rx_tail > rxq->rx_free_trigger) {
-		uint16_t cur_free_trigger = rxq->rx_free_trigger;
-
-		if (ixgbe_rx_alloc_bufs(rxq, true) != 0) {
-			PMD_RX_LOG(DEBUG, "RX mbuf alloc failed port_id=%u "
-				   "queue_id=%u", (unsigned) rxq->port_id,
-				   (unsigned) rxq->queue_id);
-
-			rte_eth_devices[rxq->port_id].data->rx_mbuf_alloc_failed +=
-				rxq->rx_free_thresh;
-
-			/*
-			 * Need to rewind any previous receives if we cannot
-			 * allocate new buffers to replenish the old ones.
-			 */
-			rxq->rx_nb_avail = 0;
-			rxq->rx_tail = (uint16_t)(rxq->rx_tail - 1);
-			rxq->sw_ring[rxq->rx_tail].mbuf = rx_pkt;
-
-			return 0;
+	uint16_t nb_rx = 0;
+	for (uint16_t i = 0; i < nb_pkts; i++) {
+		/* Try to dequeue */
+		if(!ixgbe_rx_cleanq_dequeue(rxq, &rx_pkts[nb_rx])) {
+			break;
 		}
-
-		/* update tail pointer */
-		rte_wmb();
-		IXGBE_PCI_REG_WRITE_RELAXED(rxq->rdt_reg_addr,
-					    cur_free_trigger);
+		nb_rx++;
 	}
 
-	if (rxq->rx_tail >= rxq->nb_rx_desc)
-		rxq->rx_tail = 0;
-
-	rx_pkts[0] = rx_pkt;
-
-	return 0;
+	return nb_rx;
 }
 #endif
 
