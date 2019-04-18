@@ -1924,32 +1924,90 @@ ixgbe_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 	return nb_rx;
 }
 
+#ifdef IXGBE_USE_CLEANQ
+static inline bool
+ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_mb)
+{
+	volatile union ixgbe_adv_rx_desc *rxdp;
+	struct ixgbe_rx_entry *rxep;
+	struct rte_mbuf *mb;
+	uint16_t pkt_len;
+	uint64_t pkt_flags;
+	uint32_t pkt_info;
+	uint32_t status;
+	uint64_t vlan_flags = rxq->vlan_flags;
+
+	/* get references to current descriptor and S/W ring entry */
+	rxdp = &rxq->rx_ring[rxq->rx_tail];
+	rxep = &rxq->sw_ring[rxq->rx_tail];
+
+	status = rte_le_to_cpu_32(rxdp->wb.upper.status_error);
+	
+	rte_smp_rmb();
+
+	/* check to make sure there is at least 1 packet to receive */
+	if (!(status & IXGBE_RXDADV_STAT_DD)) {
+		return false;
+	}
+
+	pkt_info = rte_le_to_cpu_32(rxdp->wb.lower.lo_dword.data);
+	pkt_len = rte_le_to_cpu_16(rxdp->wb.upper.length) - rxq->crc_len;
+	pkt_flags = rx_desc_status_to_pkt_flags(status, vlan_flags);
+	pkt_flags |= rx_desc_error_to_pkt_flags(status);
+	pkt_flags |= ixgbe_rxd_pkt_info_to_pkt_flags ((uint16_t)pkt_info);
+
+	mb = rxep->mbuf;
+	rxep->mbuf = NULL;
+
+	mb->data_len = pkt_len;
+	mb->pkt_len = pkt_len;
+	mb->vlan_tci = rte_le_to_cpu_16(rxdp->wb.upper.vlan);
+
+	/* convert descriptor fields to rte mbuf flags */
+	mb->ol_flags = pkt_flags;
+	mb->packet_type = ixgbe_rxd_pkt_info_to_pkt_type(pkt_info, rxq->pkt_type_mask);
+
+	if (likely(pkt_flags & PKT_RX_RSS_HASH)) {
+		mb->hash.rss = rte_le_to_cpu_32(
+			rxdp->wb.lower.hi_dword.rss);
+	}
+	else if (pkt_flags & PKT_RX_FDIR) {
+		mb->hash.fdir.hash = rte_le_to_cpu_16(
+			rxdp->wb.lower.hi_dword.csum_ip.csum) &
+			IXGBE_ATR_HASH_MASK;
+		mb->hash.fdir.id = rte_le_to_cpu_16(
+			rxdp->wb.lower.hi_dword.csum_ip.ip_id);
+	}
+
+	*ret_mb = mb;
+	return true;
+}
+
 static uint16_t
 ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 	     uint16_t nb_pkts)
 {
+	if (nb_pkts < 1)
+		return 0;
+	
 	struct ixgbe_rx_queue *rxq = (struct ixgbe_rx_queue *)rx_queue;
-	uint16_t nb_rx = 0;
+	struct rte_mbuf *rx_pkt;
 
-	/* Any previously recv'd pkts will be returned from the Rx stage */
-	if (rxq->rx_nb_avail)
-		return ixgbe_rx_fill_from_stage(rxq, rx_pkts, nb_pkts);
-
-	/* Scan the H/W ring for packets to receive */
-	nb_rx = (uint16_t)ixgbe_rx_scan_hw_ring(rxq);
+	/* Try to dequeue */
+	if(!ixgbe_rx_cleanq_dequeue(rxq, &rx_pkt)) {
+		return 0;
+	}
 
 	/* update internal queue state */
 	rxq->rx_next_avail = 0;
-	rxq->rx_nb_avail = nb_rx;
-	rxq->rx_tail = (uint16_t)(rxq->rx_tail + nb_rx);
+	rxq->rx_nb_avail = 0;
+	rxq->rx_tail = (uint16_t)(rxq->rx_tail + 1);
 
 	/* if required, allocate new buffers to replenish descriptors */
 	if (rxq->rx_tail > rxq->rx_free_trigger) {
 		uint16_t cur_free_trigger = rxq->rx_free_trigger;
 
 		if (ixgbe_rx_alloc_bufs(rxq, true) != 0) {
-			int i, j;
-
 			PMD_RX_LOG(DEBUG, "RX mbuf alloc failed port_id=%u "
 				   "queue_id=%u", (unsigned) rxq->port_id,
 				   (unsigned) rxq->queue_id);
@@ -1962,9 +2020,8 @@ ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 			 * allocate new buffers to replenish the old ones.
 			 */
 			rxq->rx_nb_avail = 0;
-			rxq->rx_tail = (uint16_t)(rxq->rx_tail - nb_rx);
-			for (i = 0, j = rxq->rx_tail; i < nb_rx; ++i, ++j)
-				rxq->sw_ring[j].mbuf = rxq->rx_stage[i];
+			rxq->rx_tail = (uint16_t)(rxq->rx_tail - 1);
+			rxq->sw_ring[rxq->rx_tail].mbuf = rx_pkt;
 
 			return 0;
 		}
@@ -1978,12 +2035,11 @@ ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 	if (rxq->rx_tail >= rxq->nb_rx_desc)
 		rxq->rx_tail = 0;
 
-	/* received any packets this loop? */
-	if (rxq->rx_nb_avail)
-		return ixgbe_rx_fill_from_stage(rxq, rx_pkts, nb_pkts);
+	rx_pkts[0] = rx_pkt;
 
 	return 0;
 }
+#endif
 
 /**
  * Detect an RSC descriptor.
