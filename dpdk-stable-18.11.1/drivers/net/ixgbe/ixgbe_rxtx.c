@@ -2025,19 +2025,29 @@ ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 {
 	struct ixgbe_rx_queue *rxq = (struct ixgbe_rx_queue *)rx_queue;
 	
-	/* Refill buffers */
-	struct rte_mbuf *mb;
-	if(!rte_mempool_get(rxq->mb_pool, (void **)&mb)) {
-		PMD_CLEANQ_LOG(NOTICE, "RX mbuf alloc failed port_id=%u "
-			"queue_id=%u", (unsigned) rxq->port_id,
-			(unsigned) rxq->queue_id);
+	/* Refill buffers if necessary */
+	if (rxq->rx_tail > rxq->rx_free_trigger) {
+		for (uint16_t i = 0; i < rxq->rx_free_thresh; i++) {
+			struct rte_mbuf *mb;
+			if(!rte_mempool_get(rxq->mb_pool, (void **)&mb)) {
+				PMD_CLEANQ_LOG(NOTICE, "RX mbuf alloc failed port_id=%u "
+					"queue_id=%u", (unsigned) rxq->port_id,
+					(unsigned) rxq->queue_id);
 
-		rte_eth_devices[rxq->port_id].data->rx_mbuf_alloc_failed +=
-			rxq->rx_free_thresh;
-		return 0;
+				rte_eth_devices[rxq->port_id].data->rx_mbuf_alloc_failed +=
+					rxq->rx_free_thresh;
+				return 0;
+			}
+
+			ixgbe_rx_cleanq_enqueue(rxq, mb);
+		}
+
+		rxq->rx_free_trigger = rxq->rx_free_trigger + rxq->rx_free_thresh;
+		if (rxq->rx_free_trigger >= rxq->nb_rx_desc) {
+			rxq->rx_free_trigger = rxq->rx_free_thresh - 1;
+		}
+		
 	}
-
-	ixgbe_rx_cleanq_enqueue(rxq, mb);
 
 	uint16_t nb_rx = 0;
 	for (uint16_t i = 0; i < nb_pkts; i++) {
