@@ -289,7 +289,7 @@ main(int argc, char *argv[])
     if (mbuf_pool == NULL)
         rte_exit(EXIT_FAILURE, "Cannot create mbuf pool\n");
 
-    rte_log_set_level(rte_log_register("pmd.net.ixgbe.cleanq"), RTE_LOG_DEBUG);
+    rte_log_set_level(rte_log_register("pmd.net.ixgbe.cleanq"), RTE_LOG_INFO);
 
     /* Initialize all ports. */
     RTE_ETH_FOREACH_DEV(portid)

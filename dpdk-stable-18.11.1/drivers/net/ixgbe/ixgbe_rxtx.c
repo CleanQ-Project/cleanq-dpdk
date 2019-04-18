@@ -2001,7 +2001,7 @@ ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 		return 0;
 	}
 
-	PMD_CLEANQ_LOG(DEBUG, "Dequeued packet to reveive (%p)", rx_pkt);
+	PMD_CLEANQ_LOG(INFO, "Dequeued packet to reveive (%p)", rx_pkt);
 
 	/* if required, allocate new buffers to replenish descriptors */
 	if (rxq->rx_tail > rxq->rx_free_trigger) {
