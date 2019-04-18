@@ -1954,6 +1954,8 @@ ixgbe_rx_cleanq_enqueue(struct ixgbe_rx_queue *rxq, struct rte_mbuf *mb) {
 
 	hw_tail = (uint16_t)hw_tail + 1;
 	IXGBE_PCI_REG_WRITE_RELAXED(rxq->rdt_reg_addr, hw_tail);
+
+	PMD_CLEANQ_LOG(INFO, "Enqueued packet to refill (%p)", mb);
 }
 
 static inline bool
