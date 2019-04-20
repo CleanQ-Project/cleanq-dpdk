@@ -2035,10 +2035,13 @@ ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 	/* Refill buffers
 	 * Never enqueue all, as the HW sees this as a full descriptor ring
 	 */
-	uint16_t nb_bufs = rxq->rx_recl - rxq->rx_tail - 1;
-	if (nb_bufs <= 0) {
+	int32_t nb_bufs = rxq->rx_recl - rxq->rx_tail - 1;
+	if (nb_bufs < 0) {
 		nb_bufs += rxq->nb_rx_desc;
 	}
+
+	PMD_CLEANQ_LOG(DEBUG, "RX: Refilling %"PRIu16" buffers", nb_bufs);
+
 	for (uint16_t i = 0; i < nb_bufs; i++) {
 		struct rte_mbuf *mb = rte_mbuf_raw_alloc(rxq->mb_pool);
 		if (mb == NULL) {
