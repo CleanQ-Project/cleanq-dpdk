@@ -20,6 +20,13 @@
 #define MBUF_CACHE_SIZE 250
 #define BURST_SIZE 32
 
+#define DRIVER_LOG_LEVEL RTE_LOG_INFO
+#define MAIN_LOG_LEVEL RTE_LOG_WARNING
+
+int logtype;
+#define LOG(level, fmt, args...) \
+	rte_log(RTE_LOG_ ## level, logtype, fmt , ##args)
+
 static const struct rte_eth_conf port_conf_default = {
     .rxmode = {
         .max_rx_pkt_len = ETHER_MAX_LEN,
@@ -152,7 +159,7 @@ lcore_main(void)
 
                 if (is_same_ether_addr(&port_addr, &eth_hdr->d_addr)) {
                     /* Packet was for us */
-                    printf("\nPacket %"PRIu16"/%"PRIu16" received on port %"PRIu16"\n",
+                    LOG(NOTICE, "\nPacket %"PRIu16"/%"PRIu16" received on port %"PRIu16"\n",
                         buf,
                         nb_rx,
                         port
@@ -160,14 +167,14 @@ lcore_main(void)
 
                     char type_name[64];
                     rte_get_ptype_name(buffer->packet_type, type_name, 64);
-                    printf("Type: %s\n", type_name);
+                    LOG(NOTICE, "Type: %s\n", type_name);
 
                     char s_addr[ETHER_ADDR_FMT_SIZE];
                     char d_addr[ETHER_ADDR_FMT_SIZE];
                     ether_format_addr(s_addr, ETHER_ADDR_FMT_SIZE, &eth_hdr->s_addr);
                     ether_format_addr(d_addr, ETHER_ADDR_FMT_SIZE, &eth_hdr->d_addr);
 
-                    printf("MAC: %s -> %s\n", s_addr, d_addr);
+                    LOG(INFO, "MAC: %s -> %s\n", s_addr, d_addr);
 
                     // Switch hardware addresses
                     struct ether_addr tmp_hw_addr;
@@ -183,7 +190,7 @@ lcore_main(void)
                         );
 
 			            uint8_t ip_hdr_len = (ip_hdr->version_ihl & IPV4_HDR_IHL_MASK) * IPV4_IHL_MULTIPLIER;
-                        printf(
+                        LOG(INFO,
                             "IP: %"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8" -> "
                             "%"PRIu8".%"PRIu8".%"PRIu8".%"PRIu8" (ID: %"PRIu16")\n",
                             ip_hdr->src_addr & 0xff,
@@ -211,7 +218,7 @@ lcore_main(void)
                                 struct udp_hdr *,
                                 sizeof(struct ether_hdr) + ip_hdr_len
                             );
-                            printf("UDP: %"PRIu16" -> %"PRIu16" (length: %"PRIu16")\n",
+                            LOG(INFO, "UDP: %"PRIu16" -> %"PRIu16" (length: %"PRIu16")\n",
                                 rte_be_to_cpu_16(udp_hdr->src_port),
                                 rte_be_to_cpu_16(udp_hdr->dst_port),
                                 rte_be_to_cpu_16(udp_hdr->dgram_len)
@@ -244,7 +251,7 @@ lcore_main(void)
                 /* Send burst of TX packets, to same port */
                 const uint16_t nb_tx = rte_eth_tx_burst(port, 0, tx_bufs, nb_to_send);
 
-                printf("%"PRIu16" packets sent over port %"PRIu16"\n", nb_tx, port);
+                LOG(NOTICE, "%"PRIu16" packets sent over port %"PRIu16"\n", nb_tx, port);
 
                 /* Free any unsent packets. */
                 if (unlikely(nb_tx < nb_to_send)) {
@@ -288,7 +295,9 @@ main(int argc, char *argv[])
     if (mbuf_pool == NULL)
         rte_exit(EXIT_FAILURE, "Cannot create mbuf pool\n");
 
-    rte_log_set_level(rte_log_register("pmd.net.ixgbe.cleanq"), RTE_LOG_INFO);
+    rte_log_set_level(rte_log_register("pmd.net.ixgbe.cleanq"), DRIVER_LOG_LEVEL);
+    logtype = rte_log_register("cleanq.testapp");
+    rte_log_set_level(logtype, MAIN_LOG_LEVEL);
 
     /* Initialize all ports. */
     RTE_ETH_FOREACH_DEV(portid)
