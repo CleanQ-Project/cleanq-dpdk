@@ -49,7 +49,8 @@
 #include "ixgbe_ethdev.h"
 #include "base/ixgbe_dcb.h"
 #include "base/ixgbe_common.h"
-#include "cleanq/ixgbe_cleanq.h"
+
+#include "ixgbe_cleanq.h"
 #include "ixgbe_rxtx.h"
 
 #ifdef RTE_LIBRTE_IEEE1588
@@ -1925,107 +1926,6 @@ ixgbe_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 }
 
 #ifdef IXGBE_USE_CLEANQ
-static void ixgbe_rx_cleanq_enqueue(struct ixgbe_rx_queue *rxq, struct rte_mbuf *mb) {
-	volatile union ixgbe_adv_rx_desc *rxdp;
-	struct ixgbe_rx_entry *rxep;
-	__le64 dma_addr;
-
-	rxep = &rxq->sw_ring[rxq->rx_tail];
-	rxdp = &rxq->rx_ring[rxq->rx_tail];
-	
-	/* populate the static rte mbuf fields */
-	mb->port = rxq->port_id;
-	rte_mbuf_refcnt_set(mb, 1);
-	mb->data_off = RTE_PKTMBUF_HEADROOM;
-	rxep->mbuf = mb;
-
- 	/* populate the descriptor */
-	dma_addr = rte_cpu_to_le_64(rte_mbuf_data_iova_default(mb));
-	rxdp->read.hdr_addr = 0;
-	rxdp->read.pkt_addr = dma_addr;
-
-	PMD_CLEANQ_LOG(INFO, "RX: Enqueued buffer %"PRIu16"", rxq->rx_tail);
-
-	rxq->rx_tail = (uint16_t)(rxq->rx_tail + 1);
-	if (rxq->rx_tail >= rxq->nb_rx_desc) {
-		rxq->rx_tail = 0;
-	}
-
-	rte_wmb();
-
-	IXGBE_PCI_REG_WRITE_RELAXED(rxq->rdt_reg_addr, rxq->rx_tail);
-}
-
-static bool ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_mb)
-{
-	volatile union ixgbe_adv_rx_desc *rxdp;
-	struct ixgbe_rx_entry *rxep;
-	struct rte_mbuf *mb;
-	uint16_t pkt_len;
-	uint64_t pkt_flags;
-	uint32_t pkt_info;
-	uint32_t status;
-	uint64_t vlan_flags = rxq->vlan_flags;
-
-    if (unlikely(rxq->rx_recl == rxq->rx_tail)) {
-		PMD_CLEANQ_LOG(NOTICE, "RX: Descriptor ring full (%"PRIx32")", rxq->rx_recl);
-		return false;
-	}
-
-	/* get references to current descriptor and S/W ring entry */
-	rxdp = &rxq->rx_ring[rxq->rx_recl];
-	rxep = &rxq->sw_ring[rxq->rx_recl];
-
-	status = rte_le_to_cpu_32(rxdp->wb.upper.status_error);
-	
-	rte_smp_rmb();
-
-	/* Check whether there is a packet to receive */
-	if (!(status & IXGBE_RXDADV_STAT_DD)) {
-		PMD_CLEANQ_LOG(DEBUG, "RX: No buffer to dequeue (%"PRIx32")", status);
-		return false;
-	}
-
-	pkt_info = rte_le_to_cpu_32(rxdp->wb.lower.lo_dword.data);
-	pkt_len = rte_le_to_cpu_16(rxdp->wb.upper.length) - rxq->crc_len;
-	pkt_flags = rx_desc_status_to_pkt_flags(status, vlan_flags);
-	pkt_flags |= rx_desc_error_to_pkt_flags(status);
-	pkt_flags |= ixgbe_rxd_pkt_info_to_pkt_flags ((uint16_t)pkt_info);
-
-	mb = rxep->mbuf;
-	rxep->mbuf = NULL;
-
-	mb->data_len = pkt_len;
-	mb->pkt_len = pkt_len;
-	mb->vlan_tci = rte_le_to_cpu_16(rxdp->wb.upper.vlan);
-
-	/* convert descriptor fields to rte mbuf flags */
-	mb->ol_flags = pkt_flags;
-	mb->packet_type = ixgbe_rxd_pkt_info_to_pkt_type(pkt_info, rxq->pkt_type_mask);
-
-	if (likely(pkt_flags & PKT_RX_RSS_HASH)) {
-		mb->hash.rss = rte_le_to_cpu_32(
-			rxdp->wb.lower.hi_dword.rss);
-	}
-	else if (pkt_flags & PKT_RX_FDIR) {
-		mb->hash.fdir.hash = rte_le_to_cpu_16(
-			rxdp->wb.lower.hi_dword.csum_ip.csum) &
-			IXGBE_ATR_HASH_MASK;
-		mb->hash.fdir.id = rte_le_to_cpu_16(
-			rxdp->wb.lower.hi_dword.csum_ip.ip_id);
-	}
-
-	PMD_CLEANQ_LOG(INFO, "RX: Dequeued buffer %"PRIu16, rxq->rx_recl);
-
-	rxq->rx_recl = (uint16_t)(rxq->rx_recl + 1);
-	if (rxq->rx_recl >= rxq->nb_rx_desc) {
-		rxq->rx_recl = 0;
-	}
-
-	*ret_mb = mb;
-	return true;
-}
-
 static uint16_t
 ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 	     uint16_t nb_pkts)

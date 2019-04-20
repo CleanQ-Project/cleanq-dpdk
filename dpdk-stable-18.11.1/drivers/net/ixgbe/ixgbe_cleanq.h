@@ -34,7 +34,9 @@ struct ixgbe_cleanq {
 	uint16_t			rx_recl;  /**< Latest reclaimed buffer */
 };
 
-// void ixgbe_rx_cleanq_enqueue(struct ixgbe_rx_queue *rxq, struct rte_mbuf *mb);
-// bool ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_mb)
+struct ixgbe_rx_queue;
+
+void ixgbe_rx_cleanq_enqueue(struct ixgbe_rx_queue *rxq, struct rte_mbuf *mb);
+bool ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_mb);
 
 #endif /* _IXGBE_CLEANQ_H_ */
