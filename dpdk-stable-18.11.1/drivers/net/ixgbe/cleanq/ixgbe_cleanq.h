@@ -18,7 +18,7 @@ extern int ixgbe_logtype_cleanq;
 		"%s(): " fmt "\n", __func__, ##args)
 
 #define PMD_CLEANQ_LOG_STATUS(level, q) \
-	PMD_CLEANQ_LOG(level, "Tail: %"PRIu16", Trigger: %"PRIu16"", q->rx_tail, q->rx_free_trigger)
+	PMD_CLEANQ_LOG(level, "Recl: %"PRIu16", Tail: %"PRIu16"", q->rx_recl, q->rx_tail)
 
 /**
  * Structure associated with each RX queue.
@@ -31,10 +31,10 @@ struct ixgbe_cleanq {
 	struct rte_mbuf     *sw_ring; /**< address of RX software ring. */
 	uint16_t            nb_rx_desc; /**< number of RX descriptors. */
 	uint16_t            rx_tail;  /**< current value of RDT register. */
+	uint16_t			rx_recl;  /**< Latest reclaimed buffer */
 };
 
-bool ixgbe_cleanq_create(struct ixgbe_cleanq **q);
-bool ixgbe_cleanq_dequeue(struct ixgbe_cleanq *q, struct rte_mbuf **mbuf);
-
+// void ixgbe_rx_cleanq_enqueue(struct ixgbe_rx_queue *rxq, struct rte_mbuf *mb);
+// bool ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_mb)
 
 #endif /* _IXGBE_CLEANQ_H_ */

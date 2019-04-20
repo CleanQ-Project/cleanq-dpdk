@@ -22,14 +22,3 @@ RTE_INIT(ixgbe_cleanq_log)
 	if (ixgbe_logtype_cleanq >= 0)
 		rte_log_set_level(ixgbe_logtype_init, RTE_LOG_NOTICE);
 }
-
-bool ixgbe_cleanq_create(struct ixgbe_cleanq **q)
-{
-    *q = NULL;
-    return false;
-}
-bool ixgbe_cleanq_dequeue(struct ixgbe_cleanq *q, struct rte_mbuf **mbuf)
-{
-    *mbuf = NULL;
-    return false;
-}
