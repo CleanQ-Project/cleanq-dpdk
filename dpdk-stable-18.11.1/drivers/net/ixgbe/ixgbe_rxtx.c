@@ -2049,6 +2049,7 @@ ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 			}
 
 			ixgbe_rx_cleanq_enqueue(rxq, mb);
+			PMD_CLEANQ_LOG_STATUS(INFO, rxq);
 
 			rxq->rx_free_trigger = rxq->rx_free_trigger + 1;
 			if (rxq->rx_free_trigger >= rxq->nb_rx_desc) {
@@ -2060,9 +2061,11 @@ ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 	uint16_t nb_rx = 0;
 	for (uint16_t i = 0; i < nb_pkts; i++) {
 		/* Try to dequeue */
-		if(!ixgbe_rx_cleanq_dequeue(rxq, &rx_pkts[nb_rx])) {
+		bool has_pkts = ixgbe_rx_cleanq_dequeue(rxq, &rx_pkts[nb_rx]);
+		if(!has_pkts) {
 			break;
 		}
+		PMD_CLEANQ_LOG_STATUS(INFO, rxq);
 		nb_rx++;
 	}
 

@@ -17,6 +17,9 @@ extern int ixgbe_logtype_cleanq;
 	rte_log(RTE_LOG_ ## level, ixgbe_logtype_cleanq, \
 		"%s(): " fmt "\n", __func__, ##args)
 
+#define PMD_CLEANQ_LOG_STATUS(level, q) \
+	PMD_CLEANQ_LOG(level, "Tail: %"PRIu16", Trigger: %"PRIu16"", q->rx_tail, q->rx_free_trigger)
+
 /**
  * Structure associated with each RX queue.
  */
