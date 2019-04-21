@@ -20,8 +20,9 @@
 #define MBUF_CACHE_SIZE 250
 #define BURST_SIZE 32
 
-#define DRIVER_LOG_LEVEL RTE_LOG_INFO
-#define MAIN_LOG_LEVEL RTE_LOG_WARNING
+#define DRIVER_LOG_LEVEL RTE_LOG_WARNING
+#define CLEANQ_LOG_LEVEL RTE_LOG_WARNING
+#define MAIN_LOG_LEVEL RTE_LOG_INFO
 
 int logtype;
 #define LOG(level, fmt, args...) \
@@ -295,7 +296,9 @@ main(int argc, char *argv[])
     if (mbuf_pool == NULL)
         rte_exit(EXIT_FAILURE, "Cannot create mbuf pool\n");
 
-    rte_log_set_level(rte_log_register("pmd.net.ixgbe.cleanq"), DRIVER_LOG_LEVEL);
+    rte_log_set_level(RTE_LOGTYPE_PMD, DRIVER_LOG_LEVEL);
+    rte_log_set_level(rte_log_register("pmd.net.ixgbe.init"), DRIVER_LOG_LEVEL);
+    rte_log_set_level(rte_log_register("pmd.net.ixgbe.cleanq"), CLEANQ_LOG_LEVEL);
     logtype = rte_log_register("cleanq.testapp");
     rte_log_set_level(logtype, MAIN_LOG_LEVEL);
 
