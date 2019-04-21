@@ -16,6 +16,8 @@
  */
 
 #include <stdlib.h>
+#include <stdbool.h>
+
 #include <cleanq.h>
 #include <cleanq_module.h>
 #include <slab.h>

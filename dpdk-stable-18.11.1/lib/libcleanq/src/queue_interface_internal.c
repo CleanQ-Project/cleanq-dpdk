@@ -6,6 +6,7 @@
  * If you do not find this file, copies can be found by writing to:
  * ETH Zurich D-INFK, Universitaetstr. 6, CH-8092 Zurich. Attn: Systems Group.
  */
+#include <stdbool.h>
 
 #include <cleanq.h>
 #include <cleanq_module.h>

@@ -9,7 +9,9 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <time.h>
+
 #include <slab.h>
 #include <bench.h>
 

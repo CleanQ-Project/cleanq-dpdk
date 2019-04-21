@@ -56,12 +56,12 @@ typedef enum {
 } errval_t;
 
 
-int inline err_is_ok(errval_t err) 
+inline int err_is_ok(errval_t err) 
 {
     return err == 0;
 }
 
-int inline err_is_fail(errval_t err) 
+inline int err_is_fail(errval_t err) 
 {
     return err != 0;
 }
