@@ -1928,6 +1928,92 @@ ixgbe_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 
 #ifdef RTE_LIBCLEANQ
 static uint16_t
+ixgbe_xmit_pkts_cleanq(void *tx_queue, struct rte_mbuf **tx_pkts,
+	     uint16_t nb_pkts)
+{
+	struct ixgbe_tx_queue *txq = (struct ixgbe_tx_queue *)tx_queue;
+	volatile union ixgbe_adv_tx_desc *tx_r = txq->tx_ring;
+	uint16_t n = 0;
+
+	/*
+	 * Begin scanning the H/W ring for done descriptors when the
+	 * number of available descriptors drops below tx_free_thresh.  For
+	 * each done descriptor, free the associated buffer.
+	 */
+	if (txq->nb_tx_free < txq->tx_free_thresh)
+		ixgbe_tx_free_bufs(txq);
+
+	/* Only use descriptors that are available */
+	nb_pkts = (uint16_t)RTE_MIN(txq->nb_tx_free, nb_pkts);
+	if (unlikely(nb_pkts == 0))
+		return 0;
+
+	/* Use exactly nb_pkts descriptors */
+	txq->nb_tx_free = (uint16_t)(txq->nb_tx_free - nb_pkts);
+
+	/*
+	 * At this point, we know there are enough descriptors in the
+	 * ring to transmit all the packets.  This assumes that each
+	 * mbuf contains a single segment, and that no new offloads
+	 * are expected, which would require a new context descriptor.
+	 */
+
+	/*
+	 * See if we're going to wrap-around. If so, handle the top
+	 * of the descriptor ring first, then do the bottom.  If not,
+	 * the processing looks just like the "bottom" part anyway...
+	 */
+	if ((txq->tx_tail + nb_pkts) > txq->nb_tx_desc) {
+		n = (uint16_t)(txq->nb_tx_desc - txq->tx_tail);
+		ixgbe_tx_fill_hw_ring(txq, tx_pkts, n);
+
+		/*
+		 * We know that the last descriptor in the ring will need to
+		 * have its RS bit set because tx_rs_thresh has to be
+		 * a divisor of the ring size
+		 */
+		tx_r[txq->tx_next_rs].read.cmd_type_len |=
+			rte_cpu_to_le_32(IXGBE_ADVTXD_DCMD_RS);
+		txq->tx_next_rs = (uint16_t)(txq->tx_rs_thresh - 1);
+
+		txq->tx_tail = 0;
+	}
+
+	/* Fill H/W descriptor ring with mbuf data */
+	ixgbe_tx_fill_hw_ring(txq, tx_pkts + n, (uint16_t)(nb_pkts - n));
+	txq->tx_tail = (uint16_t)(txq->tx_tail + (nb_pkts - n));
+
+	/*
+	 * Determine if RS bit should be set
+	 * This is what we actually want:
+	 *   if ((txq->tx_tail - 1) >= txq->tx_next_rs)
+	 * but instead of subtracting 1 and doing >=, we can just do
+	 * greater than without subtracting.
+	 */
+	if (txq->tx_tail > txq->tx_next_rs) {
+		tx_r[txq->tx_next_rs].read.cmd_type_len |=
+			rte_cpu_to_le_32(IXGBE_ADVTXD_DCMD_RS);
+		txq->tx_next_rs = (uint16_t)(txq->tx_next_rs +
+						txq->tx_rs_thresh);
+		if (txq->tx_next_rs >= txq->nb_tx_desc)
+			txq->tx_next_rs = (uint16_t)(txq->tx_rs_thresh - 1);
+	}
+
+	/*
+	 * Check for wrap-around. This would only happen if we used
+	 * up to the last descriptor in the ring, no more, no less.
+	 */
+	if (txq->tx_tail >= txq->nb_tx_desc)
+		txq->tx_tail = 0;
+
+	/* update tail pointer */
+	rte_wmb();
+	IXGBE_PCI_REG_WRITE_RELAXED(txq->tdt_reg_addr, txq->tx_tail);
+
+	return nb_pkts;
+}
+
+static uint16_t
 ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 	     uint16_t nb_pkts)
 {
@@ -2431,6 +2517,12 @@ static const struct ixgbe_txq_ops def_txq_ops = {
 void __attribute__((cold))
 ixgbe_set_tx_function(struct rte_eth_dev *dev, struct ixgbe_tx_queue *txq)
 {
+#ifdef RTE_LIBCLEANQ
+	dev->tx_pkt_prepare = NULL;
+	dev->tx_pkt_burst = ixgbe_xmit_pkts_cleanq;
+	return;
+#endif 
+	
 	/* Use a simple Tx queue (no offloads, no multi segs) if possible */
 	if ((txq->offloads == 0) &&
 #ifdef RTE_LIBRTE_SECURITY
