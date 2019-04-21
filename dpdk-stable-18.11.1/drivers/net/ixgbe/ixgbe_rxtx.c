@@ -1968,12 +1968,12 @@ ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 		nb_bufs += rxq->nb_rx_desc;
 	}
 
-	PMD_CLEANQ_LOG(DEBUG, "RX: Refilling %"PRIu16" buffers", nb_bufs);
+	PMD_CLEANQ_LOG_RX(DEBUG, "Refilling %"PRIu16" buffers", nb_bufs);
 
 	for (uint16_t i = 0; i < nb_bufs; i++) {
 		struct rte_mbuf *mb = rte_mbuf_raw_alloc(rxq->mb_pool);
 		if (mb == NULL) {
-			PMD_CLEANQ_LOG(NOTICE, "RX mbuf alloc failed port_id=%u "
+			PMD_CLEANQ_LOG_RX(NOTICE, "mbuf alloc failed port_id=%u "
 				"queue_id=%u", (unsigned) rxq->port_id,
 				(unsigned) rxq->queue_id);
 
@@ -1981,7 +1981,10 @@ ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 			break;
 		}
 
-		ixgbe_rx_cleanq_enqueue(rxq, mb);
+		if(!ixgbe_rx_cleanq_enqueue(rxq, mb)) {
+			rte_mbuf_raw_free(mb);
+			break;
+		}
 		PMD_CLEANQ_LOG_RX_STATUS(INFO, rxq);
 	}
 

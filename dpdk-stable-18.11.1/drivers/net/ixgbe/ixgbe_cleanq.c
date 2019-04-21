@@ -21,12 +21,17 @@
 #include "ixgbe_cleanq.h"
 #include "ixgbe_rxtx.h"
 
-int ixgbe_logtype_cleanq;
+int ixgbe_logtype_cleanq_tx;
+int ixgbe_logtype_cleanq_rx;
 RTE_INIT(ixgbe_cleanq_log)
 {
-	ixgbe_logtype_cleanq = rte_log_register("pmd.net.ixgbe.cleanq");
-	if (ixgbe_logtype_cleanq >= 0)
-		rte_log_set_level(ixgbe_logtype_init, RTE_LOG_NOTICE);
+	ixgbe_logtype_cleanq_tx = rte_log_register("pmd.net.ixgbe.cleanq.tx");
+	if (ixgbe_logtype_cleanq_tx >= 0)
+		rte_log_set_level(ixgbe_logtype_cleanq_tx, RTE_LOG_NOTICE);
+
+	ixgbe_logtype_cleanq_rx = rte_log_register("pmd.net.ixgbe.cleanq.rx");
+	if (ixgbe_logtype_cleanq_rx >= 0)
+		rte_log_set_level(ixgbe_logtype_cleanq_rx, RTE_LOG_NOTICE);
 }
 
 bool ixgbe_tx_cleanq_enqueue(struct ixgbe_tx_queue *txq, struct rte_mbuf *mb) {
@@ -39,7 +44,7 @@ bool ixgbe_tx_cleanq_enqueue(struct ixgbe_tx_queue *txq, struct rte_mbuf *mb) {
 	 * The HW otherwise sees the descriptor ring as full
 	 */
 	if (unlikely(txq->tx_recl - txq->tx_tail - 1 == 0)) {
-		PMD_CLEANQ_LOG(NOTICE, "TX: No free descriptor (%"PRIu16")", txq->tx_tail);
+		PMD_CLEANQ_LOG_TX(NOTICE, "No free descriptor (%"PRIu16")", txq->tx_tail);
 		return false;
 	}
 
@@ -71,7 +76,7 @@ bool ixgbe_tx_cleanq_enqueue(struct ixgbe_tx_queue *txq, struct rte_mbuf *mb) {
 		}
 	}
 
-	PMD_CLEANQ_LOG(INFO, "TX: Enqueued buffer %"PRIu16"", txq->tx_tail);
+	PMD_CLEANQ_LOG_TX(INFO, "Enqueued buffer %"PRIu16"", txq->tx_tail);
 
 	txq->tx_tail = (uint16_t)(txq->tx_tail + 1);
 	if (txq->tx_tail >= txq->nb_tx_desc) {
@@ -89,14 +94,14 @@ bool ixgbe_tx_cleanq_dequeue(struct ixgbe_tx_queue *txq, struct rte_mbuf **ret_m
 	uint32_t status;
 
 	if (likely(txq->tx_recl == txq->tx_tail)) {
-		PMD_CLEANQ_LOG(DEBUG, "TX: No descriptors enqueued to HW (%"PRIu16")", txq->tx_recl);
+		PMD_CLEANQ_LOG_TX(DEBUG, "No descriptors enqueued to HW (%"PRIu16")", txq->tx_recl);
 		return false;
 	}
 
 	/* check DD bit on threshold descriptor */
 	status = rte_le_to_cpu_32(txq->tx_ring[txq->tx_next_dd].wb.status);
 	if (!(status & IXGBE_ADVTXD_STAT_DD)) {
-		PMD_CLEANQ_LOG(DEBUG, "TX: No buffer to dequeue (%"PRIx32")", status);
+		PMD_CLEANQ_LOG_TX(DEBUG, "No buffer to dequeue (%"PRIx32")", status);
 		return false;
 	}
 
@@ -109,7 +114,7 @@ bool ixgbe_tx_cleanq_dequeue(struct ixgbe_tx_queue *txq, struct rte_mbuf **ret_m
 	mb = txep->mbuf;
 	txep->mbuf = NULL;
 
-	PMD_CLEANQ_LOG(INFO, "TX: Dequeued buffer %"PRIu16, txq->tx_recl);
+	PMD_CLEANQ_LOG_TX(INFO, "Dequeued buffer %"PRIu16, txq->tx_recl);
 
 	txq->tx_recl = (uint16_t)(txq->tx_recl + 1);
 	if (txq->tx_recl > txq->tx_next_dd) {
@@ -230,10 +235,18 @@ rx_desc_error_to_pkt_flags(uint32_t rx_status)
 	return pkt_flags;
 }
 
-void ixgbe_rx_cleanq_enqueue(struct ixgbe_rx_queue *rxq, struct rte_mbuf *mb) {
+bool ixgbe_rx_cleanq_enqueue(struct ixgbe_rx_queue *rxq, struct rte_mbuf *mb) {
 	volatile union ixgbe_adv_rx_desc *rxdp;
 	struct ixgbe_rx_entry *rxep;
-	__le64 dma_addr;
+	uint64_t dma_addr;
+
+	/* Always keep one descriptor
+	 * The HW otherwise sees the descriptor ring as full
+	 */
+	if (unlikely(rxq->rx_recl - rxq->rx_tail - 1 == 0)) {
+		PMD_CLEANQ_LOG_RX(NOTICE, "No free descriptor (%"PRIu16")", rxq->rx_tail);
+		return false;
+	}
 
 	rxep = &rxq->sw_ring[rxq->rx_tail];
 	rxdp = &rxq->rx_ring[rxq->rx_tail];
@@ -245,20 +258,19 @@ void ixgbe_rx_cleanq_enqueue(struct ixgbe_rx_queue *rxq, struct rte_mbuf *mb) {
 	rxep->mbuf = mb;
 
  	/* populate the descriptor */
-	dma_addr = rte_cpu_to_le_64(rte_mbuf_data_iova_default(mb));
+	dma_addr = rte_mbuf_data_iova_default(mb);
 	rxdp->read.hdr_addr = 0;
-	rxdp->read.pkt_addr = dma_addr;
+	rxdp->read.pkt_addr = rte_cpu_to_le_64(dma_addr);
 
-	PMD_CLEANQ_LOG(INFO, "RX: Enqueued buffer %"PRIu16"", rxq->rx_tail);
+	PMD_CLEANQ_LOG_RX(INFO, "Enqueued buffer %"PRIu16"", rxq->rx_tail);
 
 	rxq->rx_tail = (uint16_t)(rxq->rx_tail + 1);
 	if (rxq->rx_tail >= rxq->nb_rx_desc) {
 		rxq->rx_tail = 0;
 	}
 
-	rte_wmb();
-
-	IXGBE_PCI_REG_WRITE_RELAXED(rxq->rdt_reg_addr, rxq->rx_tail);
+	IXGBE_PCI_REG_WRITE(rxq->rdt_reg_addr, rxq->rx_tail);
+	return true;
 }
 
 bool ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_mb)
@@ -273,7 +285,7 @@ bool ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_m
 	uint64_t vlan_flags = rxq->vlan_flags;
 
     if (unlikely(rxq->rx_recl == rxq->rx_tail)) {
-		PMD_CLEANQ_LOG(NOTICE, "RX: Descriptor ring full (%"PRIu16")", rxq->rx_recl);
+		PMD_CLEANQ_LOG_RX(NOTICE, "Not descriptors enqueued to HW (%"PRIu16")", rxq->rx_recl);
 		return false;
 	}
 
@@ -287,7 +299,7 @@ bool ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_m
 
 	/* Check whether there is a packet to receive */
 	if (!(status & IXGBE_RXDADV_STAT_DD)) {
-		PMD_CLEANQ_LOG(DEBUG, "RX: No buffer to dequeue (%"PRIx32")", status);
+		PMD_CLEANQ_LOG_RX(DEBUG, "No buffer to dequeue (%"PRIx32")", status);
 		return false;
 	}
 
@@ -320,7 +332,7 @@ bool ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_m
 			rxdp->wb.lower.hi_dword.csum_ip.ip_id);
 	}
 
-	PMD_CLEANQ_LOG(INFO, "RX: Dequeued buffer %"PRIu16, rxq->rx_recl);
+	PMD_CLEANQ_LOG_RX(INFO, "Dequeued buffer %"PRIu16, rxq->rx_recl);
 
 	rxq->rx_recl = (uint16_t)(rxq->rx_recl + 1);
 	if (rxq->rx_recl >= rxq->nb_rx_desc) {
