@@ -49,8 +49,9 @@
 #include "ixgbe_ethdev.h"
 #include "base/ixgbe_dcb.h"
 #include "base/ixgbe_common.h"
-
+#ifdef RTE_LIBCLEANQ
 #include "ixgbe_cleanq.h"
+#endif
 #include "ixgbe_rxtx.h"
 
 #ifdef RTE_LIBRTE_IEEE1588
@@ -1925,7 +1926,7 @@ ixgbe_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 	return nb_rx;
 }
 
-#ifdef IXGBE_USE_CLEANQ
+#ifdef RTE_LIBCLEANQ
 static uint16_t
 ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 	     uint16_t nb_pkts)
@@ -2861,7 +2862,7 @@ ixgbe_reset_rx_queue(struct ixgbe_adapter *adapter, struct ixgbe_rx_queue *rxq)
 	rxq->rxrearm_nb = 0;
 #endif
 
-#ifdef IXGBE_USE_CLEANQ
+#ifdef RTE_LIBCLEANQ
 	rxq->rx_recl = 0;
 #endif
 }
@@ -4623,7 +4624,7 @@ ixgbe_set_ivar(struct rte_eth_dev *dev, u8 entry, u8 vector, s8 type)
 void __attribute__((cold))
 ixgbe_set_rx_function(struct rte_eth_dev *dev)
 {
-#ifdef IXGBE_USE_CLEANQ
+#ifdef RTE_LIBCLEANQ
 	dev->rx_pkt_burst = ixgbe_recv_pkts_cleanq;
 	return;
 #endif
@@ -5245,8 +5246,8 @@ ixgbe_dev_rx_queue_start(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 
 	rxq = dev->data->rx_queues[rx_queue_id];
 
+#ifndef RTE_LIBCLEANQ
 	/* Allocate buffers for descriptor rings */
-#ifndef IXGBE_USE_CLEANQ
 	if (ixgbe_alloc_rx_queue_mbufs(rxq) != 0) {
 		PMD_INIT_LOG(ERR, "Could not alloc mbuf for queue:%d",
 			     rx_queue_id);
@@ -5267,7 +5268,7 @@ ixgbe_dev_rx_queue_start(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 		PMD_INIT_LOG(ERR, "Could not enable Rx Queue %d", rx_queue_id);
 	rte_wmb();
 	IXGBE_WRITE_REG(hw, IXGBE_RDH(rxq->reg_idx), 0);
-#ifdef IXGBE_USE_CLEANQ
+#ifdef RTE_LIBCLEANQ
 	IXGBE_WRITE_REG(hw, IXGBE_RDT(rxq->reg_idx), rxq->rx_tail);
 #else
 	IXGBE_WRITE_REG(hw, IXGBE_RDT(rxq->reg_idx), rxq->nb_rx_desc - 1);

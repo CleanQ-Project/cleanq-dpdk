@@ -10,8 +10,6 @@
 #ifndef _IXGBE_CLEANQ_H_
 #define _IXGBE_CLEANQ_H_
 
-#define IXGBE_USE_CLEANQ
-
 extern int ixgbe_logtype_cleanq;
 #define PMD_CLEANQ_LOG(level, fmt, args...) \
 	rte_log(RTE_LOG_ ## level, ixgbe_logtype_cleanq, \

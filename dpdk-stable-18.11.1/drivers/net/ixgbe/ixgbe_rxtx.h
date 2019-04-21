@@ -105,7 +105,7 @@ struct ixgbe_rx_queue {
 	uint64_t            mbuf_initializer; /**< value to init mbufs */
 	uint16_t            nb_rx_desc; /**< number of RX descriptors. */
 	uint16_t            rx_tail;  /**< current value of RDT register. */
-#ifdef IXGBE_USE_CLEANQ
+#ifdef RTE_LIBCLEANQ
 	uint16_t			rx_recl;  /**< Latest reclaimed buffer */
 #endif
 	uint16_t            nb_rx_hold; /**< number of held free RX desc. */

@@ -13,6 +13,8 @@
 #include <rte_mbuf.h>
 #include <rte_ethdev_driver.h>
 
+#include <cleanq.h>
+
 #include "ixgbe_ethdev.h"
 #include "base/ixgbe_common.h"
 
