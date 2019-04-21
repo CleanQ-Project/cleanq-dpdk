@@ -15,8 +15,11 @@ extern int ixgbe_logtype_cleanq;
 	rte_log(RTE_LOG_ ## level, ixgbe_logtype_cleanq, \
 		"%s(): " fmt "\n", __func__, ##args)
 
-#define PMD_CLEANQ_LOG_STATUS(level, q) \
-	PMD_CLEANQ_LOG(level, "Recl: %"PRIu16", Tail: %"PRIu16"", q->rx_recl, q->rx_tail)
+#define PMD_CLEANQ_LOG_TX_STATUS(level, q) \
+	PMD_CLEANQ_LOG(level, "TX: Recl=%"PRIu16", Tail=%"PRIu16"", q->tx_recl, q->tx_tail)
+
+#define PMD_CLEANQ_LOG_RX_STATUS(level, q) \
+	PMD_CLEANQ_LOG(level, "RX: Recl=%"PRIu16", Tail=%"PRIu16"", q->rx_recl, q->rx_tail)
 
 /**
  * Structure associated with each RX queue.
@@ -32,7 +35,11 @@ struct ixgbe_cleanq {
 	uint16_t			rx_recl;  /**< Latest reclaimed buffer */
 };
 
+struct ixgbe_tx_queue;
 struct ixgbe_rx_queue;
+
+bool ixgbe_tx_cleanq_enqueue(struct ixgbe_tx_queue *txq, struct rte_mbuf *mb);
+bool ixgbe_tx_cleanq_dequeue(struct ixgbe_tx_queue *txq, struct rte_mbuf **ret_mb);
 
 void ixgbe_rx_cleanq_enqueue(struct ixgbe_rx_queue *rxq, struct rte_mbuf *mb);
 bool ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_mb);

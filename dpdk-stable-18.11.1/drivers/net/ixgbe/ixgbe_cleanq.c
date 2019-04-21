@@ -29,6 +29,49 @@ RTE_INIT(ixgbe_cleanq_log)
 		rte_log_set_level(ixgbe_logtype_init, RTE_LOG_NOTICE);
 }
 
+bool ixgbe_tx_cleanq_dequeue(struct ixgbe_tx_queue *txq, struct rte_mbuf **ret_mb) {
+	struct ixgbe_tx_entry *txep;
+	struct rte_mbuf *mb;
+	uint32_t status;
+
+	if (unlikely(txq->tx_recl == txq->tx_tail)) {
+		PMD_CLEANQ_LOG(NOTICE, "TX: Descriptor ring full (%"PRIx32")", txq->tx_recl);
+		return false;
+	}
+
+	/* check DD bit on threshold descriptor */
+	status = rte_le_to_cpu_32(txq->tx_ring[txq->tx_next_dd].wb.status);
+	if (!(status & IXGBE_ADVTXD_STAT_DD)) {
+		PMD_CLEANQ_LOG(DEBUG, "TX: No buffer to dequeue (%"PRIx32")", status);
+		return false;
+	}
+
+	/*
+	 * first buffer to free from S/W ring is at index
+	 * tx_next_dd - (tx_rs_thresh-1)
+	 */
+	txep = &txq->sw_ring[txq->tx_recl];
+
+	mb = txep->mbuf;
+	txep->mbuf = NULL;
+
+	PMD_CLEANQ_LOG(INFO, "TX: Dequeued buffer %"PRIu16, txq->tx_recl);
+
+	txq->tx_recl = (uint16_t)(txq->tx_recl + 1);
+	if (txq->tx_recl > txq->tx_next_dd) {
+		txq->tx_next_dd = (uint16_t)(txq->tx_next_dd + txq->tx_rs_thresh);
+		if (txq->tx_next_dd >= txq->nb_tx_desc) {
+			txq->tx_next_dd = (uint16_t)(txq->tx_rs_thresh - 1);
+		}
+	}
+	if (txq->tx_recl >= txq->nb_tx_desc) {
+		txq->tx_recl = 0;
+	}
+
+	*ret_mb = mb;
+	return true;
+}
+
 static inline uint32_t
 ixgbe_rxd_pkt_info_to_pkt_type(uint32_t pkt_info, uint16_t ptype_mask)
 {

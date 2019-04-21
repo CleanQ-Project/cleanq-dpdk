@@ -206,6 +206,9 @@ struct ixgbe_tx_queue {
 	volatile uint32_t   *tdt_reg_addr; /**< Address of TDT register. */
 	uint16_t            nb_tx_desc;    /**< number of TX descriptors. */
 	uint16_t            tx_tail;       /**< current value of TDT reg. */
+#ifdef RTE_LIBCLEANQ
+	uint16_t			tx_recl;  /**< Latest reclaimed buffer */
+#endif
 	/**< Start freeing TX buffers if there are less free descriptors than
 	     this value. */
 	uint16_t            tx_free_thresh;

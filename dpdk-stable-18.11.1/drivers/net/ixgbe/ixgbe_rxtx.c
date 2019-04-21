@@ -1927,21 +1927,25 @@ ixgbe_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 }
 
 #ifdef RTE_LIBCLEANQ
+bool ixgbe_tx_cleanq_enqueue(struct ixgbe_tx_queue *txq, struct rte_mbuf *mb) {
+	return false;
+}
+
 static uint16_t
 ixgbe_xmit_pkts_cleanq(void *tx_queue, struct rte_mbuf **tx_pkts,
 	     uint16_t nb_pkts)
 {
 	struct ixgbe_tx_queue *txq = (struct ixgbe_tx_queue *)tx_queue;
+
+	/* Dequeue and free all the buffers the HW is finished with */
+	struct rte_mbuf *mb;
+	while (ixgbe_tx_cleanq_dequeue(txq, &mb)) {
+		PMD_CLEANQ_LOG_TX_STATUS(INFO, txq);
+		rte_pktmbuf_free_seg(mb);
+	}
+
 	volatile union ixgbe_adv_tx_desc *tx_r = txq->tx_ring;
 	uint16_t n = 0;
-
-	/*
-	 * Begin scanning the H/W ring for done descriptors when the
-	 * number of available descriptors drops below tx_free_thresh.  For
-	 * each done descriptor, free the associated buffer.
-	 */
-	if (txq->nb_tx_free < txq->tx_free_thresh)
-		ixgbe_tx_free_bufs(txq);
 
 	/* Only use descriptors that are available */
 	nb_pkts = (uint16_t)RTE_MIN(txq->nb_tx_free, nb_pkts);
@@ -2041,7 +2045,7 @@ ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 		}
 
 		ixgbe_rx_cleanq_enqueue(rxq, mb);
-		PMD_CLEANQ_LOG_STATUS(INFO, rxq);
+		PMD_CLEANQ_LOG_RX_STATUS(INFO, rxq);
 	}
 
 	uint16_t nb_rx = 0;
@@ -2051,7 +2055,7 @@ ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 		if(!has_pkts) {
 			break;
 		}
-		PMD_CLEANQ_LOG_STATUS(INFO, rxq);
+		PMD_CLEANQ_LOG_RX_STATUS(INFO, rxq);
 		nb_rx++;
 	}
 
