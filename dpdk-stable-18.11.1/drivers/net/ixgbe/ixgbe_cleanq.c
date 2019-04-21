@@ -34,8 +34,8 @@ bool ixgbe_tx_cleanq_dequeue(struct ixgbe_tx_queue *txq, struct rte_mbuf **ret_m
 	struct rte_mbuf *mb;
 	uint32_t status;
 
-	if (unlikely(txq->tx_recl == txq->tx_tail)) {
-		PMD_CLEANQ_LOG(NOTICE, "TX: Descriptor ring full (%"PRIx32")", txq->tx_recl);
+	if (likely(txq->tx_recl == txq->tx_tail)) {
+		PMD_CLEANQ_LOG(DEBUG, "TX: Descriptor ring full (%"PRIu16")", txq->tx_recl);
 		return false;
 	}
 
@@ -219,7 +219,7 @@ bool ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_m
 	uint64_t vlan_flags = rxq->vlan_flags;
 
     if (unlikely(rxq->rx_recl == rxq->rx_tail)) {
-		PMD_CLEANQ_LOG(NOTICE, "RX: Descriptor ring full (%"PRIx32")", rxq->rx_recl);
+		PMD_CLEANQ_LOG(NOTICE, "RX: Descriptor ring full (%"PRIu16")", rxq->rx_recl);
 		return false;
 	}
 

@@ -2497,6 +2497,9 @@ ixgbe_reset_tx_queue(struct ixgbe_tx_queue *txq)
 
 	txq->tx_tail = 0;
 	txq->nb_tx_used = 0;
+#ifdef RTE_LIBCLEANQ
+	txq->tx_recl = 0;
+#endif
 	/*
 	 * Always allow 1 descriptor to be un-allocated to avoid
 	 * a H/W race condition
@@ -5448,7 +5451,11 @@ ixgbe_dev_tx_queue_start(struct rte_eth_dev *dev, uint16_t tx_queue_id)
 				tx_queue_id);
 	}
 	rte_wmb();
+#ifdef RTE_LIBCLEANQ
+	IXGBE_WRITE_REG(hw, IXGBE_TDT(txq->reg_idx), txq->tx_tail);
+#else
 	IXGBE_WRITE_REG(hw, IXGBE_TDT(txq->reg_idx), 0);
+#endif
 	dev->data->tx_queue_state[tx_queue_id] = RTE_ETH_QUEUE_STATE_STARTED;
 
 	return 0;
