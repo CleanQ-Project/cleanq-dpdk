@@ -92,11 +92,7 @@ errval_t ixgbe_tx_cleanq_enqueue(
 	};
 	cleanq_buf_to_mbuf(q, cqbuf, &mb);
 
-	PMD_CLEANQ_LOG_TX(WARNING, "mbuf: %p, buf_addr: %p, after struct: %p",
-		mb,
-		mb->buf_addr,
-		mb + sizeof(struct rte_mbuf)
-	);
+	PMD_CLEANQ_LOG_TX(DEBUG, "mbuf: %p", mb);
 
 	/* Always keep one descriptor
 	 * The HW otherwise sees the descriptor ring as full
@@ -147,21 +143,29 @@ errval_t ixgbe_tx_cleanq_enqueue(
 	return CLEANQ_ERR_OK;
 }
 
-bool ixgbe_tx_cleanq_dequeue(struct ixgbe_tx_queue *txq, struct rte_mbuf **ret_mb) {
+errval_t ixgbe_tx_cleanq_dequeue(
+	struct cleanq *q, regionid_t* region_id,
+    genoffset_t* offset, genoffset_t* length,
+    genoffset_t* valid_offset,
+    genoffset_t* valid_length,
+    uint64_t* misc_flags)
+{
+	struct ixgbe_tx_queue *txq = (struct ixgbe_tx_queue *)q;
+	
 	struct ixgbe_tx_entry *txep;
 	struct rte_mbuf *mb;
 	uint32_t status;
 
 	if (likely(txq->tx_recl == txq->tx_tail)) {
 		PMD_CLEANQ_LOG_TX(DEBUG, "No descriptors enqueued to HW (%"PRIu16")", txq->tx_recl);
-		return false;
+		return CLEANQ_ERR_QUEUE_EMPTY;
 	}
 
 	/* check DD bit on threshold descriptor */
 	status = rte_le_to_cpu_32(txq->tx_ring[txq->tx_next_dd].wb.status);
 	if (!(status & IXGBE_ADVTXD_STAT_DD)) {
 		PMD_CLEANQ_LOG_TX(DEBUG, "No buffer to dequeue (%"PRIx32")", status);
-		return false;
+		return CLEANQ_ERR_QUEUE_EMPTY;
 	}
 
 	/*
@@ -186,8 +190,22 @@ bool ixgbe_tx_cleanq_dequeue(struct ixgbe_tx_queue *txq, struct rte_mbuf **ret_m
 		txq->tx_recl = 0;
 	}
 
-	*ret_mb = mb;
-	return true;
+	
+
+	struct cleanq_buf cqbuf;
+	mbuf_to_cleanq_buf(q, mb, &cqbuf);
+
+	PMD_CLEANQ_LOG_TX(DEBUG, "mbuf: %p", mb);
+
+	*region_id = cqbuf.rid;
+    *offset = cqbuf.offset;
+	*length = cqbuf.length;
+    *valid_offset = cqbuf.valid_data;
+    *valid_length = cqbuf.valid_length;
+    *misc_flags = cqbuf.flags;
+
+	PMD_CLEANQ_LOG_TX_STATUS(INFO, txq);
+	return CLEANQ_ERR_OK;
 }
 
 /*

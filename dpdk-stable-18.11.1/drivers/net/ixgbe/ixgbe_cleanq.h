@@ -41,14 +41,23 @@ errval_t ixgbe_cleanq_deregister(
     regionid_t region_id);
 
 errval_t ixgbe_tx_cleanq_create(struct ixgbe_tx_queue *txq);
-errval_t ixgbe_tx_cleanq_enqueue(struct cleanq *q, regionid_t region_id,
-                                   genoffset_t offset, genoffset_t length,
-                                   genoffset_t valid_offset,
-                                   genoffset_t valid_length,
-                                   uint64_t misc_flags);
-bool ixgbe_tx_cleanq_dequeue(struct ixgbe_tx_queue *txq, struct rte_mbuf **ret_mb);
+
+errval_t ixgbe_tx_cleanq_enqueue(
+	struct cleanq *q, regionid_t region_id,
+    genoffset_t offset, genoffset_t length,
+    genoffset_t valid_offset,
+    genoffset_t valid_length,
+    uint64_t misc_flags);
+
+errval_t ixgbe_tx_cleanq_dequeue(
+	struct cleanq *q, regionid_t* region_id,
+    genoffset_t* offset, genoffset_t* length,
+    genoffset_t* valid_offset,
+    genoffset_t* valid_length,
+    uint64_t* misc_flags);
 
 bool ixgbe_rx_cleanq_enqueue(struct ixgbe_rx_queue *rxq, struct rte_mbuf *mb);
+
 bool ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_mb);
 
 #endif /* _IXGBE_CLEANQ_H_ */

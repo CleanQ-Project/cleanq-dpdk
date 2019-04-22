@@ -1937,26 +1937,42 @@ ixgbe_xmit_pkts_cleanq(void *tx_queue, struct rte_mbuf **tx_pkts,
 	     uint16_t nb_pkts)
 {
 	struct cleanq *txq = (struct cleanq *)tx_queue;
+	errval_t err = CLEANQ_ERR_OK;
+	struct cleanq_buf cqbuf;
 
 	/* Dequeue and free all the buffers the HW is finished with */
 	struct rte_mbuf *mb;
-	while (ixgbe_tx_cleanq_dequeue((struct ixgbe_tx_queue *)txq, &mb)) {
-		PMD_CLEANQ_LOG_TX_STATUS(INFO, (struct ixgbe_tx_queue *)txq);
-		rte_pktmbuf_free_seg(mb);
+	while (err_is_ok(err)) {
+		err = cleanq_dequeue(
+			txq,
+			&cqbuf.rid,
+			&cqbuf.offset,
+			&cqbuf.length,
+			&cqbuf.valid_data,
+			&cqbuf.valid_length,
+			&cqbuf.flags
+		);
+		if (err_is_ok(err)) {
+			cleanq_buf_to_mbuf(txq, cqbuf, &mb);
+
+			PMD_CLEANQ_LOG_TX(DEBUG, "mbuf: %p", mb);
+
+			rte_pktmbuf_free_seg(mb);
+		}
 	}
 
-	struct cleanq_buf cqbuf;
 	uint16_t nb_tx = 0;
 	for (uint16_t i = 0; i < nb_pkts; i++) {
 		/* Try to enqueue */
-		PMD_CLEANQ_LOG_TX(WARNING, "tx_pkts[%"PRIu16"]: %p, ->buf_addr: %p, after struct: %p",
+		PMD_CLEANQ_LOG_TX(DEBUG, "tx_pkts[%"PRIu16"]: %p, ->buf_addr: %p, after struct: %p",
 			nb_tx,
 			tx_pkts[nb_tx],
 			tx_pkts[nb_tx]->buf_addr,
 			tx_pkts[nb_tx] + sizeof(struct rte_mbuf)
 		);
+
 		mbuf_to_cleanq_buf(txq, tx_pkts[nb_tx], &cqbuf);
-		errval_t err = ixgbe_tx_cleanq_enqueue(
+		err = cleanq_enqueue(
 			txq,
 			cqbuf.rid,
 			cqbuf.offset,
