@@ -1949,6 +1949,7 @@ ixgbe_xmit_pkts_cleanq(void *tx_queue, struct rte_mbuf **tx_pkts,
 	uint16_t nb_tx = 0;
 	for (uint16_t i = 0; i < nb_pkts; i++) {
 		/* Try to enqueue */
+		PMD_CLEANQ_LOG_TX(WARNING, "Mbuf: %p, mbuf->buf_addr: %p", tx_pkts[nb_tx], tx_pkts[nb_tx]->buf_addr);
 		mbuf_to_cleanq_buf(txq, tx_pkts[nb_tx], &cqbuf);
 		errval_t err = ixgbe_tx_cleanq_enqueue(
 			txq,

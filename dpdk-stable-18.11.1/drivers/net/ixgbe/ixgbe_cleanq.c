@@ -69,6 +69,8 @@ errval_t ixgbe_tx_cleanq_enqueue(struct cleanq *q, regionid_t region_id,
 	};
 	cleanq_buf_to_mbuf(q, cqbuf, &mb);
 
+	PMD_CLEANQ_LOG_TX(WARNING, "Mbuf: %p, mbuf->buf_addr: %p", mb, mb->buf_addr);
+
 	/* Always keep one descriptor
 	 * The HW otherwise sees the descriptor ring as full
 	 */
