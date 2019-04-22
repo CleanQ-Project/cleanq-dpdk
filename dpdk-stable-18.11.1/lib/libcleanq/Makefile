@@ -17,7 +17,7 @@ VPATH += $(SRCDIR)/include
 VPATH += $(SRCDIR)/src
 
 # all source are stored in SRCS-y
-SRCS-$(CONFIG_RTE_LIBCLEANQL) += queue_interface.c
+SRCS-$(CONFIG_RTE_LIBCLEANQ) += queue_interface.c
 SRCS-$(CONFIG_RTE_LIBCLEANQ) += queue_interface_internal.c
 SRCS-$(CONFIG_RTE_LIBCLEANQ) += region_pool.c
 SRCS-$(CONFIG_RTE_LIBCLEANQ) += region.c
