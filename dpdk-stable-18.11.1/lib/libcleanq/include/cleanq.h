@@ -91,9 +91,9 @@ inline int err_is_fail(errval_t err)
 errval_t cleanq_enqueue(struct cleanq *q,
                       regionid_t region_id,
                       genoffset_t offset,
-                      genoffset_t lenght,
+                      genoffset_t length,
                       genoffset_t valid_data,
-                      genoffset_t valid_lenght,
+                      genoffset_t valid_length,
                       uint64_t misc_flags);
 
 /**
@@ -117,7 +117,7 @@ errval_t cleanq_enqueue(struct cleanq *q,
 errval_t cleanq_dequeue(struct cleanq *q,
                       regionid_t* region_id,
                       genoffset_t* offset,
-                      genoffset_t* langht,
+                      genoffset_t* length,
                       genoffset_t* valid_data,
                       genoffset_t* valid_length,
                       uint64_t* misc_flags);

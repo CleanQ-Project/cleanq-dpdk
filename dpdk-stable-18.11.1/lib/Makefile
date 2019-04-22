@@ -116,5 +116,6 @@ DEPDIRS-librte_kni := librte_eal librte_mempool librte_mbuf librte_ethdev
 DEPDIRS-librte_kni += librte_pci
 
 DIRS-$(CONFIG_RTE_LIBCLEANQ) += libcleanq
+DEPDIRS-libcleanq := librte_mbuf
 
 include $(RTE_SDK)/mk/rte.subdir.mk

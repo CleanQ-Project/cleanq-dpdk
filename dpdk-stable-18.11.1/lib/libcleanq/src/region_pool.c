@@ -12,9 +12,9 @@
 #include <stdbool.h>
 #include <time.h>
 
-#include <slab.h>
 #include <bench.h>
 
+#include "slab.h"
 #include "region_pool.h"
 #include "dqi_debug.h"
 
@@ -443,4 +443,28 @@ bool region_pool_buffer_check_bounds(struct region_pool* pool,
     }
 
     return true;
+}
+
+inline
+uint64_t base_addr_of_region(struct region_pool* pool, regionid_t region_id)
+{
+    struct region* region;
+    region = pool->pool[region_id & (pool->size - 1)];
+    if (region == NULL) {
+        return 0;
+    }
+    return region->base_addr;
+}
+
+inline
+regionid_t region_with_base_addr(struct region_pool* pool, uint64_t base_addr)
+{
+    struct region* region;
+    for (uint16_t i = 0; i < pool->size; i++) {
+        region = pool->pool[i];
+        if (region != NULL && region->base_addr == base_addr) {
+            return region->id;
+        }
+    }
+    return 0;
 }

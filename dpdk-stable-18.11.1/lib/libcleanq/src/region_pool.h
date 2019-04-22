@@ -9,7 +9,6 @@
 #ifndef REGION_POOL_H_
 #define REGION_POOL_H_ 1
 
-
 #include <cleanq.h>
 
 struct region_pool;
@@ -91,4 +90,9 @@ bool region_pool_buffer_check_bounds(struct region_pool* pool,
                                      genoffset_t length,
                                      genoffset_t valid_data,
                                      genoffset_t valid_length);
+
+uint64_t base_addr_of_region(struct region_pool* pool, regionid_t region_id);
+
+regionid_t region_with_base_addr(struct region_pool* pool, uint64_t base_addr);
+
 #endif /* REGION_POOL_H_ */

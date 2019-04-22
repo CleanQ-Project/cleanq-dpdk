@@ -13,7 +13,7 @@
 #include <cleanq.h>
 #include <cleanq_module.h>
 #include <backends/debug.h>
-#include <slab.h>
+#include "slab.h"
 #include "debug.h"
 
 

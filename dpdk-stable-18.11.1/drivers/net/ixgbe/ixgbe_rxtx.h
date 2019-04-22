@@ -5,6 +5,10 @@
 #ifndef _IXGBE_RXTX_H_
 #define _IXGBE_RXTX_H_
 
+#ifdef RTE_LIBCLEANQ
+#include <cleanq_module.h>
+#endif
+
 /*
  * Rings setup and release.
  *
@@ -196,6 +200,12 @@ struct ixgbe_advctx_info {
  * Structure associated with each TX queue.
  */
 struct ixgbe_tx_queue {
+#ifdef RTE_LIBCLEANQ
+	// CleanQ region management
+    struct region_pool* pool;
+    // CleanQ funciton pointers
+    struct cleanq_func_pointer f;
+#endif
 	/** TX ring virtual address. */
 	volatile union ixgbe_adv_tx_desc *tx_ring;
 	uint64_t            tx_ring_phys_addr; /**< TX ring DMA address. */

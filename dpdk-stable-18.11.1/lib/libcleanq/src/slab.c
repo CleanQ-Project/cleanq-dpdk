@@ -20,7 +20,7 @@
 
 #include <cleanq.h>
 #include <cleanq_module.h>
-#include <slab.h>
+#include "slab.h"
 
 #define PAGE_SIZE 4096
 

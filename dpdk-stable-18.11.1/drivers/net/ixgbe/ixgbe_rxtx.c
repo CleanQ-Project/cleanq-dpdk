@@ -43,6 +43,11 @@
 #include <rte_ip.h>
 #include <rte_net.h>
 
+#ifdef RTE_LIBCLEANQ
+#include <cleanq.h>
+#include <cleanq_dpdk.h>
+#endif
+
 #include "ixgbe_logs.h"
 #include "base/ixgbe_api.h"
 #include "base/ixgbe_vf.h"
@@ -1931,23 +1936,32 @@ static uint16_t
 ixgbe_xmit_pkts_cleanq(void *tx_queue, struct rte_mbuf **tx_pkts,
 	     uint16_t nb_pkts)
 {
-	struct ixgbe_tx_queue *txq = (struct ixgbe_tx_queue *)tx_queue;
+	struct cleanq *txq = (struct cleanq *)tx_queue;
 
 	/* Dequeue and free all the buffers the HW is finished with */
 	struct rte_mbuf *mb;
-	while (ixgbe_tx_cleanq_dequeue(txq, &mb)) {
-		PMD_CLEANQ_LOG_TX_STATUS(INFO, txq);
+	while (ixgbe_tx_cleanq_dequeue((struct ixgbe_tx_queue *)txq, &mb)) {
+		PMD_CLEANQ_LOG_TX_STATUS(INFO, (struct ixgbe_tx_queue *)txq);
 		rte_pktmbuf_free_seg(mb);
 	}
 
+	struct cleanq_buf cqbuf;
 	uint16_t nb_tx = 0;
 	for (uint16_t i = 0; i < nb_pkts; i++) {
-				/* Try to dequeue */
-		bool was_sent = ixgbe_tx_cleanq_enqueue(txq, tx_pkts[nb_tx]);
-		if(!was_sent) {
+		/* Try to enqueue */
+		mbuf_to_cleanq_buf(txq, tx_pkts[nb_tx], &cqbuf);
+		errval_t err = ixgbe_tx_cleanq_enqueue(
+			txq,
+			cqbuf.rid,
+			cqbuf.offset,
+			cqbuf.length,
+			cqbuf.valid_data,
+			cqbuf.valid_length,
+			cqbuf.flags
+		);
+		if(err_is_fail(err)) {
 			break;
 		}
-		PMD_CLEANQ_LOG_TX_STATUS(INFO, txq);
 		nb_tx++;
 	}
 

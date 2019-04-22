@@ -10,13 +10,15 @@
 #ifndef _IXGBE_CLEANQ_H_
 #define _IXGBE_CLEANQ_H_
 
+#include <cleanq_module.h>
+
 extern int ixgbe_logtype_cleanq_tx;
 #define PMD_CLEANQ_LOG_TX(level, fmt, args...) \
 	rte_log(RTE_LOG_ ## level, ixgbe_logtype_cleanq_tx, \
 		"%s(): TX: " fmt "\n", __func__, ##args)
 
 #define PMD_CLEANQ_LOG_TX_STATUS(level, q) \
-	PMD_CLEANQ_LOG_TX(level, "Recl=%"PRIu16", Tail=%"PRIu16"", q->tx_recl, q->tx_tail)
+	PMD_CLEANQ_LOG_TX(level, "Recl=%"PRIu16", Tail=%"PRIu16"", (q)->tx_recl, (q)->tx_tail)
 
 extern int ixgbe_logtype_cleanq_rx;
 #define PMD_CLEANQ_LOG_RX(level, fmt, args...) \
@@ -24,26 +26,17 @@ extern int ixgbe_logtype_cleanq_rx;
 		"%s(): RX: " fmt "\n", __func__, ##args)
 
 #define PMD_CLEANQ_LOG_RX_STATUS(level, q) \
-	PMD_CLEANQ_LOG_RX(level, "Recl=%"PRIu16", Tail=%"PRIu16"", q->rx_recl, q->rx_tail)
-
-/**
- * Structure associated with each RX queue.
- */
-struct ixgbe_cleanq {
-	volatile union ixgbe_adv_rx_desc *rx_ring; /**< RX ring virtual address. */
-	uint64_t            rx_ring_phys_addr; /**< RX ring DMA address. */
-	volatile uint32_t   *rdt_reg_addr; /**< RDT register address. */
-	volatile uint32_t   *rdh_reg_addr; /**< RDH register address. */
-	struct rte_mbuf     *sw_ring; /**< address of RX software ring. */
-	uint16_t            nb_rx_desc; /**< number of RX descriptors. */
-	uint16_t            rx_tail;  /**< current value of RDT register. */
-	uint16_t			rx_recl;  /**< Latest reclaimed buffer */
-};
+	PMD_CLEANQ_LOG_RX(level, "Recl=%"PRIu16", Tail=%"PRIu16"", (q)->rx_recl, (q)->rx_tail)
 
 struct ixgbe_tx_queue;
 struct ixgbe_rx_queue;
 
-bool ixgbe_tx_cleanq_enqueue(struct ixgbe_tx_queue *txq, struct rte_mbuf *mb);
+errval_t ixgbe_tx_cleanq_create(struct ixgbe_tx_queue *txq);
+errval_t ixgbe_tx_cleanq_enqueue(struct cleanq *q, regionid_t region_id,
+                                   genoffset_t offset, genoffset_t length,
+                                   genoffset_t valid_offset,
+                                   genoffset_t valid_length,
+                                   uint64_t misc_flags);
 bool ixgbe_tx_cleanq_dequeue(struct ixgbe_tx_queue *txq, struct rte_mbuf **ret_mb);
 
 bool ixgbe_rx_cleanq_enqueue(struct ixgbe_rx_queue *rxq, struct rte_mbuf *mb);

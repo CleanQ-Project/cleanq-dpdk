@@ -13,13 +13,13 @@
 #include <rte_mbuf.h>
 #include <rte_ethdev_driver.h>
 
-#include <cleanq.h>
+#include <cleanq_dpdk.h>
 
 #include "ixgbe_ethdev.h"
 #include "base/ixgbe_common.h"
 
-#include "ixgbe_cleanq.h"
 #include "ixgbe_rxtx.h"
+#include "ixgbe_cleanq.h"
 
 int ixgbe_logtype_cleanq_tx;
 int ixgbe_logtype_cleanq_rx;
@@ -34,18 +34,47 @@ RTE_INIT(ixgbe_cleanq_log)
 		rte_log_set_level(ixgbe_logtype_cleanq_rx, RTE_LOG_NOTICE);
 }
 
-bool ixgbe_tx_cleanq_enqueue(struct ixgbe_tx_queue *txq, struct rte_mbuf *mb) {
+/*
+ * ===========================================================================
+ * TX
+ * ===========================================================================
+ */
+errval_t ixgbe_tx_cleanq_create(struct ixgbe_tx_queue *txq)
+{
+	txq->f.enq = ixgbe_tx_cleanq_enqueue;
+	txq->f.deq = ixgbe_tx_cleanq_dequeue;
+	return CLEANQ_ERR_OK;
+}
+
+errval_t ixgbe_tx_cleanq_enqueue(struct cleanq *q, regionid_t region_id,
+                                   genoffset_t offset, genoffset_t length,
+                                   genoffset_t valid_offset,
+                                   genoffset_t valid_length,
+                                   uint64_t misc_flags)
+{
+	struct ixgbe_tx_queue *txq = (struct ixgbe_tx_queue *)q;
 	volatile union ixgbe_adv_tx_desc *txdp;
 	struct ixgbe_tx_entry *txep;
 	uint64_t dma_addr;
 	uint32_t pkt_len;
+
+	struct rte_mbuf *mb;
+	struct cleanq_buf cqbuf = {
+		.offset = offset,
+		.length = length,
+		.valid_data = valid_offset,
+		.valid_length = valid_length,
+		.flags = misc_flags,
+		.rid = region_id
+	};
+	cleanq_buf_to_mbuf(q, cqbuf, &mb);
 
 	/* Always keep one descriptor
 	 * The HW otherwise sees the descriptor ring as full
 	 */
 	if (unlikely(txq->tx_recl - txq->tx_tail - 1 == 0)) {
 		PMD_CLEANQ_LOG_TX(NOTICE, "No free descriptor (%"PRIu16")", txq->tx_tail);
-		return false;
+		return CLEANQ_ERR_QUEUE_FULL;
 	}
 
 	txep = &txq->sw_ring[txq->tx_tail];
@@ -85,7 +114,8 @@ bool ixgbe_tx_cleanq_enqueue(struct ixgbe_tx_queue *txq, struct rte_mbuf *mb) {
 
 	IXGBE_PCI_REG_WRITE(txq->tdt_reg_addr, txq->tx_tail);
 
-	return true;
+	PMD_CLEANQ_LOG_TX_STATUS(INFO, txq);
+	return CLEANQ_ERR_OK;
 }
 
 bool ixgbe_tx_cleanq_dequeue(struct ixgbe_tx_queue *txq, struct rte_mbuf **ret_mb) {
@@ -131,6 +161,11 @@ bool ixgbe_tx_cleanq_dequeue(struct ixgbe_tx_queue *txq, struct rte_mbuf **ret_m
 	return true;
 }
 
+/*
+ * ===========================================================================
+ * RX
+ * ===========================================================================
+ */
 static inline uint32_t
 ixgbe_rxd_pkt_info_to_pkt_type(uint32_t pkt_info, uint16_t ptype_mask)
 {
