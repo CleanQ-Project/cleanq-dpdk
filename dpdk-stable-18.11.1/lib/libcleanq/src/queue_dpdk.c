@@ -7,6 +7,7 @@
  * ETH Zurich D-INFK, Universitaetstr. 6, CH-8092 Zurich. Attn: Systems Group.
  */
 #include <stdbool.h>
+#include <sys/queue.h>
 
 #include <rte_mbuf.h>
 
@@ -20,8 +21,10 @@
 static inline void
 mempool_to_cap(struct rte_mempool *mp, struct capref *cap)
 {
-    struct rte_mempool_memhdr *first_chunk = STAILQ_FIRST(&mp->mem_list);
-    cap->len = mp->size;
+    struct rte_mempool_memhdr *first_chunk = STAILQ_FIRST(&mp->mem_list);				\
+    struct rte_mempool_memhdr *last_chunk = STAILQ_LAST(&mp->mem_list);
+    // Assume mempool is contiguous
+    cap->len = (uint64_t)last_chunk->addr - (uint64_t)first_chunk->addr + last_chunk->len;
     // Only use virtual addresses
     cap->paddr = (uint64_t)first_chunk->addr;
     cap->vaddr = first_chunk->addr;
