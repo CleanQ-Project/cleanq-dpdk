@@ -28,11 +28,10 @@
   * @returns error on failure or SYS_ERR_OK on success
   */
 
-errval_t cleanq_init(struct cleanq *q, bool exp)
+errval_t cleanq_init(struct cleanq *q)
 {
     
     errval_t err;
-    q->exp = exp;
     err = region_pool_init(&(q->pool));
     
     return err;

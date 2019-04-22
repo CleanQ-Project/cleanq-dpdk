@@ -53,7 +53,7 @@ struct region {
     // Base address of the region
     uint64_t base_addr;
     // Capability of the region
-    struct capref* cap;
+    struct capref cap;
     // Lenght of the memory region
     size_t len;
 };
@@ -121,7 +121,7 @@ errval_t region_pool_init(struct region_pool** pool)
     (*pool) = (struct region_pool*) calloc(1, sizeof(struct region_pool));
     if (*pool == NULL) {
         DQI_DEBUG_REGION("Allocationg inital pool failed \n");
-        return LIB_ERR_MALLOC_FAIL;
+        return CLEANQ_ERR_MALLOC_FAIL;
     }
 
     (*pool)->num_regions = 0;
@@ -136,14 +136,14 @@ errval_t region_pool_init(struct region_pool** pool)
     if ((*pool)->pool == NULL) {
         free(*pool);
         DQI_DEBUG_REGION("Allocationg inital pool failed \n");
-        return LIB_ERR_MALLOC_FAIL;
+        return CLEANQ_ERR_MALLOC_FAIL;
     }
 
     slab_init(&(*pool)->region_alloc, sizeof(struct region),
               slab_default_refill);
 
     DQI_DEBUG_REGION("Init region pool size=%d addr=%p\n", INIT_POOL_SIZE, *pool);
-    return SYS_ERR_OK;
+    return CLEANQ_ERR_OK;
 }
 
 /**
@@ -162,7 +162,7 @@ errval_t region_pool_destroy(struct region_pool* pool)
     if (pool->num_regions == 0) {
         free(pool->pool);
         free(pool);
-        return SYS_ERR_OK;
+        return CLEANQ_ERR_OK;
     } else {
         // There are regions left -> remove them
         for (int i = 0; i < pool->size; i++) {
@@ -180,7 +180,7 @@ errval_t region_pool_destroy(struct region_pool* pool)
         free(pool);
     }
    
-    return SYS_ERR_OK;
+    return CLEANQ_ERR_OK;
 }
 
 /**
@@ -201,7 +201,7 @@ static errval_t region_pool_grow(struct region_pool* pool)
     tmp = (struct region**) calloc(new_size, sizeof(struct region*));
     if (tmp == NULL) {
         DQI_DEBUG_REGION("Allocationg larger pool failed \n");
-        return LIB_ERR_MALLOC_FAIL;
+        return CLEANQ_ERR_MALLOC_FAIL;
     }
 
     // Copy all the pointers
@@ -222,7 +222,7 @@ static errval_t region_pool_grow(struct region_pool* pool)
     pool->size = new_size;
     pool->last_offset = 0;
 
-    return SYS_ERR_OK;
+    return CLEANQ_ERR_OK;
 }
 
 /**
@@ -239,7 +239,7 @@ errval_t region_pool_add_region(struct region_pool* pool,
                                 struct capref cap,
                                 regionid_t* region_id)
 {
-    errval_t err = SYS_ERR_OK;
+    errval_t err = CLEANQ_ERR_OK;
     struct region* region;
 
     // for now just loop over all entries
@@ -296,11 +296,11 @@ errval_t region_pool_add_region(struct region_pool* pool,
 
     region = (struct region*) slab_alloc(&pool->region_alloc);
     if (region == NULL) {
-        return LIB_ERR_MALLOC_FAIL;
+        return CLEANQ_ERR_MALLOC_FAIL;
     }
 
     region->id = pool->region_offset + pool->num_regions + offset;
-    region->cap = &cap;
+    region->cap = cap;
     region->base_addr = cap.paddr;
     region->len = cap.len;
 
@@ -342,11 +342,11 @@ errval_t region_pool_add_region_with_id(struct region_pool* pool,
     } else {
         region = (struct region*) slab_alloc(&pool->region_alloc);
         if (region == NULL) {
-            return LIB_ERR_MALLOC_FAIL;
+            return CLEANQ_ERR_MALLOC_FAIL;
         }
 
         region->id = region_id;
-        region->cap = &cap;
+        region->cap = cap;
         region->base_addr = cap.paddr;
         region->len = cap.len;
 
@@ -354,7 +354,7 @@ errval_t region_pool_add_region_with_id(struct region_pool* pool,
     }
 
     pool->num_regions++;
-    return SYS_ERR_OK;
+    return CLEANQ_ERR_OK;
 }
 
 /**
@@ -377,13 +377,13 @@ errval_t region_pool_remove_region(struct region_pool* pool,
         return CLEANQ_ERR_INVALID_REGION_ID;
     }
 
-    cap = region->cap;
+    *cap = region->cap;
   
     slab_free(&pool->region_alloc, region);
     pool->pool[region_id & (pool->size - 1)] = NULL;
 
     pool->num_regions--;
-    return SYS_ERR_OK;
+    return CLEANQ_ERR_OK;
 }
 
 

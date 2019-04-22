@@ -187,7 +187,7 @@ errval_t cleanq_dequeue(struct cleanq *q,
 
     DQI_DEBUG("Dequeue q=%p rid=%u, offset=%lu \n", q, *region_id, *offset);
 
-    return SYS_ERR_OK;
+    return CLEANQ_ERR_OK;
 }
 
 /*
@@ -292,12 +292,12 @@ errval_t cleanq_notify(struct cleanq *q)
  *
  * @param q      The device queue to call the operation on
  *
- * @returns error on failure or SYS_ERR_OK on success
+ * @returns error on failure or CLEANQ_ERR_OK on success
  *
  */
 errval_t cleanq_prepare(struct cleanq *q)
 {
-    return SYS_ERR_OK;
+    return CLEANQ_ERR_OK;
 }
 
 /**

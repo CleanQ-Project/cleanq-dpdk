@@ -40,7 +40,7 @@ struct cleanq_buf{
 };
 
 typedef enum {
-    SYS_ERR_OK = 0,
+    CLEANQ_ERR_OK = 0,
     CLEANQ_ERR_INIT_QUEUE,
     CLEANQ_ERR_BUFFER_ID,
     CLEANQ_ERR_BUFFER_NOT_IN_REGION,
@@ -52,18 +52,18 @@ typedef enum {
     CLEANQ_ERR_QUEUE_EMPTY,
     CLEANQ_ERR_QUEUE_FULL,
     CLEANQ_ERR_BUFFER_NOT_IN_USE,
-    LIB_ERR_MALLOC_FAIL
+    CLEANQ_ERR_MALLOC_FAIL
 } errval_t;
 
 
 inline int err_is_ok(errval_t err) 
 {
-    return err == 0;
+    return err == CLEANQ_ERR_OK;
 }
 
 inline int err_is_fail(errval_t err) 
 {
-    return err != 0;
+    return err != CLEANQ_ERR_OK;
 }
 
 /*

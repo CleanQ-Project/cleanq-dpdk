@@ -12,7 +12,6 @@
 #include <cleanq.h>
 struct region_pool;
 struct cleanq;
-struct iommu_client;
 
 /*
  * ===========================================================================
@@ -145,22 +144,13 @@ struct cleanq {
     // Region management
     struct region_pool* pool;
 
-    // Iommu client for device
-    struct iommu_client* iommu;
-
     // Funciton pointers
     struct cleanq_func_pointer f;
 
-    // exported cleanq
-    /* Depending on the side of the channel (if there are two),
-       adding/removing regions and enqueueing/dequeueing buffers
-       has to be handeled differently in the bookkeeping part
-    */
-    bool exp;
     void *state;
 };
 
-errval_t cleanq_init(struct cleanq *q, bool exp);
+errval_t cleanq_init(struct cleanq *q);
 
 errval_t cleanq_add_region(struct cleanq*, struct capref cap,
                          regionid_t rid);

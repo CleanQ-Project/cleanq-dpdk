@@ -63,7 +63,7 @@ errval_t region_init(struct region** region,
     struct region* tmp = (struct region*) malloc(sizeof(struct region));
     //struct region* tmp = calloc(1, sizeof(struct region));
     if (tmp == NULL) {
-        return LIB_ERR_MALLOC_FAIL;
+        return CLEANQ_ERR_MALLOC_FAIL;
     }
 
     tmp->id = region_id;
@@ -76,7 +76,7 @@ errval_t region_init(struct region** region,
     DQI_DEBUG_REGION("Initialize Region size=%ld addr=%16lx\n",
               tmp->len, tmp->base_addr);
 
-    return SYS_ERR_OK;
+    return CLEANQ_ERR_OK;
 }
 
 
@@ -90,6 +90,6 @@ errval_t region_init(struct region** region,
 errval_t region_destroy(struct region* region)
 {
     free(region);
-    return SYS_ERR_OK;
+    return CLEANQ_ERR_OK;
 }
 

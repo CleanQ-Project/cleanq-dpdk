@@ -205,11 +205,11 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
     */
     void* buf = malloc(bytes);
     if (!buf) {
-        return LIB_ERR_MALLOC_FAIL;
+        return CLEANQ_ERR_MALLOC_FAIL;
     }
 
     slab_grow(slabs, buf, bytes);
-    return SYS_ERR_OK;
+    return CLEANQ_ERR_OK;
 }
 
 /**
