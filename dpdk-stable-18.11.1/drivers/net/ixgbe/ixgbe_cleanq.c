@@ -190,12 +190,23 @@ errval_t ixgbe_tx_cleanq_dequeue(
 		txq->tx_recl = 0;
 	}
 
-	
+	PMD_CLEANQ_LOG_TX(DEBUG, "mbuf: %p", mb);
 
 	struct cleanq_buf cqbuf;
 	mbuf_to_cleanq_buf(q, mb, &cqbuf);
 
-	PMD_CLEANQ_LOG_TX(DEBUG, "mbuf: %p", mb);
+	PMD_CLEANQ_LOG_TX(DEBUG,
+			"region=%"PRIu32", "
+			"offset=%"PRIu64", "
+			"length=%"PRIu64", "
+			"valid_offset=%"PRIu64", "
+			"valid_length=%"PRIu64,
+			cqbuf.rid,
+			cqbuf.offset,
+			cqbuf.length,
+			cqbuf.valid_data,
+			cqbuf.valid_length
+		);
 
 	*region_id = cqbuf.rid;
     *offset = cqbuf.offset;

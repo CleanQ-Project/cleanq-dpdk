@@ -1964,14 +1964,25 @@ ixgbe_xmit_pkts_cleanq(void *tx_queue, struct rte_mbuf **tx_pkts,
 	uint16_t nb_tx = 0;
 	for (uint16_t i = 0; i < nb_pkts; i++) {
 		/* Try to enqueue */
-		PMD_CLEANQ_LOG_TX(DEBUG, "tx_pkts[%"PRIu16"]: %p, ->buf_addr: %p, after struct: %p",
+		PMD_CLEANQ_LOG_TX(DEBUG, "tx_pkts[%"PRIu16"]: %p",
 			nb_tx,
-			tx_pkts[nb_tx],
-			tx_pkts[nb_tx]->buf_addr,
-			tx_pkts[nb_tx] + sizeof(struct rte_mbuf)
+			tx_pkts[nb_tx]
 		);
 
 		mbuf_to_cleanq_buf(txq, tx_pkts[nb_tx], &cqbuf);
+
+		PMD_CLEANQ_LOG_TX(DEBUG,
+			"region=%"PRIu32", "
+			"offset=%"PRIu64", "
+			"length=%"PRIu64", "
+			"valid_offset=%"PRIu64", "
+			"valid_length=%"PRIu64,
+			cqbuf.rid,
+			cqbuf.offset,
+			cqbuf.length,
+			cqbuf.valid_data,
+			cqbuf.valid_length
+		);
 		err = cleanq_enqueue(
 			txq,
 			cqbuf.rid,
