@@ -43,7 +43,7 @@ errval_t ixgbe_tx_cleanq_create(struct ixgbe_tx_queue *txq)
 {
 	txq->f.enq = ixgbe_tx_cleanq_enqueue;
 	txq->f.deq = ixgbe_tx_cleanq_dequeue;
-	return CLEANQ_ERR_OK;
+	return cleanq_init((struct cleanq *)txq);
 }
 
 errval_t ixgbe_tx_cleanq_enqueue(struct cleanq *q, regionid_t region_id,
@@ -69,7 +69,11 @@ errval_t ixgbe_tx_cleanq_enqueue(struct cleanq *q, regionid_t region_id,
 	};
 	cleanq_buf_to_mbuf(q, cqbuf, &mb);
 
-	PMD_CLEANQ_LOG_TX(WARNING, "Mbuf: %p, mbuf->buf_addr: %p", mb, mb->buf_addr);
+	PMD_CLEANQ_LOG_TX(WARNING, "mbuf: %p, buf_addr: %p, after struct: %p",
+		mb,
+		mb->buf_addr,
+		mb + sizeof(struct rte_mbuf)
+	);
 
 	/* Always keep one descriptor
 	 * The HW otherwise sees the descriptor ring as full

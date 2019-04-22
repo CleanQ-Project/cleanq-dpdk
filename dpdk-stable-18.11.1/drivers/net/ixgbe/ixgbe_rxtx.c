@@ -1949,7 +1949,12 @@ ixgbe_xmit_pkts_cleanq(void *tx_queue, struct rte_mbuf **tx_pkts,
 	uint16_t nb_tx = 0;
 	for (uint16_t i = 0; i < nb_pkts; i++) {
 		/* Try to enqueue */
-		PMD_CLEANQ_LOG_TX(WARNING, "Mbuf: %p, mbuf->buf_addr: %p", tx_pkts[nb_tx], tx_pkts[nb_tx]->buf_addr);
+		PMD_CLEANQ_LOG_TX(WARNING, "tx_pkts[%"PRIu16"]: %p, ->buf_addr: %p, after struct: %p",
+			nb_tx,
+			tx_pkts[nb_tx],
+			tx_pkts[nb_tx]->buf_addr,
+			tx_pkts[nb_tx] + sizeof(struct rte_mbuf)
+		);
 		mbuf_to_cleanq_buf(txq, tx_pkts[nb_tx], &cqbuf);
 		errval_t err = ixgbe_tx_cleanq_enqueue(
 			txq,
@@ -2479,12 +2484,6 @@ static const struct ixgbe_txq_ops def_txq_ops = {
 void __attribute__((cold))
 ixgbe_set_tx_function(struct rte_eth_dev *dev, struct ixgbe_tx_queue *txq)
 {
-#ifdef RTE_LIBCLEANQ
-	dev->tx_pkt_prepare = NULL;
-	dev->tx_pkt_burst = ixgbe_xmit_pkts_cleanq;
-	return;
-#endif 
-	
 	/* Use a simple Tx queue (no offloads, no multi segs) if possible */
 	if ((txq->offloads == 0) &&
 #ifdef RTE_LIBRTE_SECURITY
@@ -2732,8 +2731,18 @@ ixgbe_dev_tx_queue_setup(struct rte_eth_dev *dev,
 	PMD_INIT_LOG(DEBUG, "sw_ring=%p hw_ring=%p dma_addr=0x%"PRIx64,
 		     txq->sw_ring, txq->tx_ring, txq->tx_ring_phys_addr);
 
+	
+#ifdef RTE_LIBCLEANQ
+	if (err_is_fail(ixgbe_tx_cleanq_create(txq))) {
+		ixgbe_tx_queue_release(txq);
+		return -ENOMEM;
+	}
+	dev->tx_pkt_prepare = NULL;
+	dev->tx_pkt_burst = ixgbe_xmit_pkts_cleanq;
+#else
 	/* set up vector or scalar TX function as appropriate */
 	ixgbe_set_tx_function(dev, txq);
+#endif
 
 	txq->ops->reset(txq);
 
