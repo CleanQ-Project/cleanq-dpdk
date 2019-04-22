@@ -16,6 +16,7 @@
 
 #include <cleanq_dpdk.h>
 
+#include "dqi_debug.h"
 #include "region_pool.h"
 
 static inline uint64_t
@@ -55,6 +56,11 @@ cleanq_register_mempool(struct cleanq *q, struct rte_mempool *mp)
 
     mempool_to_cap(mp, &cap);
 
+    DQI_DEBUG("Registering mempool: base_addr=0x%"PRIx64", length=%"PRIu64"\n",
+        cap.paddr,
+        cap.len
+    );
+
     return cleanq_register(q, cap, &region_id);
 }
 
@@ -66,6 +72,11 @@ cleanq_deregister_mempool(struct cleanq *q, struct rte_mempool *mp)
 
     uint64_t base_addr = mempool_base_addr(mp);
     region_id = region_with_base_addr(q->pool, base_addr);
+
+    DQI_DEBUG("Deregistering mempool: base_addr=0x%"PRIx64", region_id=%"PRIu32"\n",
+        cap.paddr,
+        region_id
+    );
 
     return cleanq_deregister(q, region_id, &cap);
 }
