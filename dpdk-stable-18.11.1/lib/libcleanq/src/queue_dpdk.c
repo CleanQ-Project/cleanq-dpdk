@@ -18,12 +18,13 @@
 #include "region_pool.h"
 
 static inline void
-memchunk_to_cap(struct rte_mempool_memhdr *mem_chunk, struct capref *cap)
+mempool_to_cap(struct rte_mempool *mp, struct capref *cap)
 {
-    cap->len = mem_chunk->len;
+    struct rte_mempool_memhdr *first_chunk = STAILQ_FIRST(&mp->mem_list);
+    cap->len = mp->size;
     // Only use virtual addresses
-    cap->paddr = (uint64_t)mem_chunk->addr;
-    cap->vaddr = mem_chunk->addr;
+    cap->paddr = (uint64_t)first_chunk->addr;
+    cap->vaddr = first_chunk->addr;
 }
 
 errval_t
@@ -31,24 +32,22 @@ cleanq_register_mempool(struct cleanq *q, struct rte_mempool *mp)
 {
     struct capref cap;
     regionid_t region_id;
-    errval_t err;
 
-    struct rte_mempool_memhdr *mem_chunk;
-    STAILQ_FOREACH(mem_chunk, &mp->mem_list, next) {
-        memchunk_to_cap(mem_chunk, &cap);
-        err = cleanq_register(q, cap, &region_id);
-        if (err_is_fail(err)) {
-            //TODO: Clean up partial registration of mempool
-            return err;
-        }
-    }
-    return CLEANQ_ERR_OK;
+    mempool_to_cap(mp, &cap);
+
+    return cleanq_register(q, cap, &region_id);
 }
 
 errval_t
 cleanq_deregister_mempool(struct cleanq *q, struct rte_mempool *mp)
 {
-    return CLEANQ_ERR_OK;
+    struct capref cap;
+    regionid_t region_id;
+
+    mempool_to_cap(mp, &cap);
+    region_id = cap.paddr;
+
+    return cleanq_deregister(q, region_id, &cap);
 }
 
 inline void
@@ -57,13 +56,14 @@ mbuf_to_cleanq_buf(
     struct rte_mbuf *mbuf,
     struct cleanq_buf *cqbuf)
 {
-    uint64_t base_addr = (uint64_t)mbuf->pool->mz->addr;
-    cqbuf->offset = (genoffset_t)mbuf - base_addr;
+    struct capref cap;
+    mempool_to_cap(mbuf->pool, &cap);
+    cqbuf->offset = (genoffset_t)mbuf - cap.paddr;
 	cqbuf->length = mbuf->buf_len;
 	cqbuf->valid_data = mbuf->data_off;
 	cqbuf->valid_length = mbuf->data_len;
 	cqbuf->flags = 0;
-	cqbuf->rid = region_with_base_addr(q->pool, base_addr);
+	cqbuf->rid = region_with_base_addr(q->pool, cap.paddr);
 }
 
 inline void

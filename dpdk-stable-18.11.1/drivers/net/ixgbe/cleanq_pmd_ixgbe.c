@@ -11,7 +11,6 @@ errval_t cleanq_pmd_ixgbe_tx_register(
 {
 	struct rte_eth_dev *dev;
     struct cleanq *q;
-    struct capref cap;
     
     RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 
@@ -36,7 +35,6 @@ errval_t cleanq_pmd_ixgbe_tx_deregister(
 {
     struct rte_eth_dev *dev;
     struct cleanq *q;
-    struct capref cap;
     
     RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 
