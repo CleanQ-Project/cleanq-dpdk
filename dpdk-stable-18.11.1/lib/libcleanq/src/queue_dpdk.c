@@ -17,13 +17,22 @@
 
 #include "region_pool.h"
 
-inline
-void mbuf_to_cleanq_buf(
+inline void
+membpool_to_cap(struct rte_mempool *pool, struct capref *cap)
+{
+    cap->len = pool->mz->len;
+    // Only use virtual addresses
+    cap->paddr = (uint64_t)pool->mz->addr;
+    cap->vaddr = pool->mz->addr;
+}
+
+inline void
+mbuf_to_cleanq_buf(
     struct cleanq *q,
     struct rte_mbuf *mbuf,
     struct cleanq_buf *cqbuf)
 {
-    uint64_t base_addr = (genoffset_t)mbuf->pool->mz->addr;
+    uint64_t base_addr = (uint64_t)mbuf->pool->mz->addr;
     cqbuf->offset = (genoffset_t)mbuf->buf_addr - base_addr;
 	cqbuf->length = mbuf->buf_len;
 	cqbuf->valid_data = mbuf->data_off;
@@ -32,8 +41,8 @@ void mbuf_to_cleanq_buf(
 	cqbuf->rid = region_with_base_addr(q->pool, base_addr);
 }
 
-inline
-void cleanq_buf_to_mbuf(
+inline void
+cleanq_buf_to_mbuf(
     struct cleanq *q,
     struct cleanq_buf cqbuf,
     struct rte_mbuf **mbuf)

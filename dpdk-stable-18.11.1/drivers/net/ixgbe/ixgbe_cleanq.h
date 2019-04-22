@@ -31,6 +31,15 @@ extern int ixgbe_logtype_cleanq_rx;
 struct ixgbe_tx_queue;
 struct ixgbe_rx_queue;
 
+errval_t ixgbe_cleanq_register(
+	struct cleanq *q,
+    struct capref cap,
+    regionid_t region_id);
+
+errval_t ixgbe_cleanq_deregister(
+	struct cleanq *q,
+    regionid_t region_id);
+
 errval_t ixgbe_tx_cleanq_create(struct ixgbe_tx_queue *txq);
 errval_t ixgbe_tx_cleanq_enqueue(struct cleanq *q, regionid_t region_id,
                                    genoffset_t offset, genoffset_t length,

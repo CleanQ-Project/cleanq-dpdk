@@ -13,6 +13,11 @@
 struct cleanq;
 struct cleanq_buf;
 struct rte_mbuf;
+struct rte_mempool;
+struct capref;
+
+void
+membpool_to_cap(struct rte_mempool *pool, struct capref *cap);
 
 void
 mbuf_to_cleanq_buf(

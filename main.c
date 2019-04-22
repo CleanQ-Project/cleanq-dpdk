@@ -12,6 +12,8 @@
 #include <rte_ether.h>
 #include <rte_ip.h>
 #include <rte_udp.h>
+#include <cleanq.h>
+#include <cleanq_pmd_ixgbe.h>
 
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
@@ -34,6 +36,8 @@ static const struct rte_eth_conf port_conf_default = {
         .max_rx_pkt_len = ETHER_MAX_LEN,
     },
 };
+
+regionid_t tx_region;
 
 /* basicfwd.c: Basic DPDK skeleton forwarding example. */
 
@@ -86,6 +90,7 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
                 rte_eth_dev_socket_id(port), &txconf);
         if (retval < 0)
             return retval;
+        cleanq_pmd_ixgbe_tx_register(port, q, mbuf_pool, &tx_region);
     }
 
     /* Start the Ethernet port. */

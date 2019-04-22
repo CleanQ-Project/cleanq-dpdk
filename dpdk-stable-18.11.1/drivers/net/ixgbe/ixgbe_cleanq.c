@@ -34,6 +34,21 @@ RTE_INIT(ixgbe_cleanq_log)
 		rte_log_set_level(ixgbe_logtype_cleanq_rx, RTE_LOG_NOTICE);
 }
 
+errval_t ixgbe_cleanq_register(
+	struct cleanq *q,
+    struct capref cap,
+    regionid_t region_id)
+{
+	return CLEANQ_ERR_OK;
+}
+
+errval_t ixgbe_cleanq_deregister(
+	struct cleanq *q,
+    regionid_t region_id)
+{
+	return CLEANQ_ERR_OK;
+}
+
 /*
  * ===========================================================================
  * TX
@@ -41,16 +56,24 @@ RTE_INIT(ixgbe_cleanq_log)
  */
 errval_t ixgbe_tx_cleanq_create(struct ixgbe_tx_queue *txq)
 {
+	errval_t err;
+	err = cleanq_init((struct cleanq *)txq);
+	if (err_is_fail(err)) {
+		return err;
+	}
 	txq->f.enq = ixgbe_tx_cleanq_enqueue;
 	txq->f.deq = ixgbe_tx_cleanq_dequeue;
-	return cleanq_init((struct cleanq *)txq);
+	txq->f.reg = ixgbe_cleanq_register;
+	txq->f.dereg = ixgbe_cleanq_deregister;
+	return CLEANQ_ERR_OK;
 }
 
-errval_t ixgbe_tx_cleanq_enqueue(struct cleanq *q, regionid_t region_id,
-                                   genoffset_t offset, genoffset_t length,
-                                   genoffset_t valid_offset,
-                                   genoffset_t valid_length,
-                                   uint64_t misc_flags)
+errval_t ixgbe_tx_cleanq_enqueue(
+	struct cleanq *q, regionid_t region_id,
+    genoffset_t offset, genoffset_t length,
+    genoffset_t valid_offset,
+    genoffset_t valid_length,
+    uint64_t misc_flags)
 {
 	struct ixgbe_tx_queue *txq = (struct ixgbe_tx_queue *)q;
 	volatile union ixgbe_adv_tx_desc *txdp;

@@ -110,9 +110,13 @@ SRCS-$(CONFIG_RTE_LIBRTE_IXGBE_PMD) += ixgbe_tm.c
 SRCS-$(CONFIG_RTE_LIBRTE_IXGBE_PMD) += ixgbe_vf_representor.c
 ifeq ($(CONFIG_RTE_LIBCLEANQ),y)
 SRCS-$(CONFIG_RTE_LIBRTE_IXGBE_PMD) += ixgbe_cleanq.c
+SRCS-$(CONFIG_RTE_LIBRTE_IXGBE_PMD) += cleanq_pmd_ixgbe.c
 endif
 
 # install this header file
 SYMLINK-$(CONFIG_RTE_LIBRTE_IXGBE_PMD)-include := rte_pmd_ixgbe.h
+ifeq ($(CONFIG_RTE_LIBCLEANQ),y)
+SYMLINK-$(CONFIG_RTE_LIBRTE_IXGBE_PMD)-include += cleanq_pmd_ixgbe.h
+endif
 
 include $(RTE_SDK)/mk/rte.lib.mk
