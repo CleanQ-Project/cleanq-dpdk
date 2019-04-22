@@ -18,16 +18,33 @@
 
 #include "region_pool.h"
 
+static inline uint64_t
+mempool_base_addr(struct rte_mempool *mp)
+{
+    struct rte_mempool_memhdr *first_chunk = STAILQ_FIRST(&mp->mem_list);
+    return (uint64_t)first_chunk->addr;
+}
+
+static inline uint64_t
+mempool_length(struct rte_mempool *mp)
+{
+    uint64_t length = 0;
+    struct rte_mempool_memhdr *mem_chunk;
+    // Assume mempool is contiguous
+    STAILQ_FOREACH(mem_chunk, &mp->mem_list, next) {
+        length += mem_chunk->len;
+    }
+    return length;
+}
+
 static inline void
 mempool_to_cap(struct rte_mempool *mp, struct capref *cap)
 {
-    struct rte_mempool_memhdr *first_chunk = STAILQ_FIRST(&mp->mem_list);				\
-    struct rte_mempool_memhdr *last_chunk = STAILQ_LAST(&mp->mem_list);
-    // Assume mempool is contiguous
-    cap->len = (uint64_t)last_chunk->addr - (uint64_t)first_chunk->addr + last_chunk->len;
+    uint64_t base_addr = mempool_base_addr(mp);
+    cap->len = mempool_length(mp);
     // Only use virtual addresses
-    cap->paddr = (uint64_t)first_chunk->addr;
-    cap->vaddr = first_chunk->addr;
+    cap->paddr = base_addr;
+    cap->vaddr = (void *)base_addr;
 }
 
 errval_t
@@ -59,14 +76,13 @@ mbuf_to_cleanq_buf(
     struct rte_mbuf *mbuf,
     struct cleanq_buf *cqbuf)
 {
-    struct capref cap;
-    mempool_to_cap(mbuf->pool, &cap);
-    cqbuf->offset = (genoffset_t)mbuf - cap.paddr;
+    uint64_t base_addr = mempool_base_addr(mbuf->pool);
+    cqbuf->offset = (genoffset_t)mbuf - base_addr;
 	cqbuf->length = mbuf->buf_len;
 	cqbuf->valid_data = mbuf->data_off;
 	cqbuf->valid_length = mbuf->data_len;
 	cqbuf->flags = 0;
-	cqbuf->rid = region_with_base_addr(q->pool, cap.paddr);
+	cqbuf->rid = region_with_base_addr(q->pool, base_addr);
 }
 
 inline void
