@@ -70,13 +70,16 @@ errval_t ixgbe_tx_cleanq_create(struct ixgbe_tx_queue *txq)
 }
 
 errval_t ixgbe_tx_cleanq_enqueue(
-	struct cleanq *q, regionid_t region_id,
-    genoffset_t offset, genoffset_t length,
+	struct cleanq *q,
+	regionid_t region_id,
+    genoffset_t offset,
+	genoffset_t length,
     genoffset_t valid_offset,
     genoffset_t valid_length,
     uint64_t misc_flags)
 {
 	struct ixgbe_tx_queue *txq = (struct ixgbe_tx_queue *)q;
+
 	volatile union ixgbe_adv_tx_desc *txdp;
 	struct ixgbe_tx_entry *txep;
 	uint64_t dma_addr;
@@ -145,8 +148,10 @@ errval_t ixgbe_tx_cleanq_enqueue(
 }
 
 errval_t ixgbe_tx_cleanq_dequeue(
-	struct cleanq *q, regionid_t* region_id,
-    genoffset_t* offset, genoffset_t* length,
+	struct cleanq *q,
+	regionid_t* region_id,
+    genoffset_t* offset,
+	genoffset_t* length,
     genoffset_t* valid_offset,
     genoffset_t* valid_length,
     uint64_t* misc_flags)
@@ -196,18 +201,7 @@ errval_t ixgbe_tx_cleanq_dequeue(
 	struct cleanq_buf cqbuf;
 	mbuf_to_cleanq_buf(q, mb, &cqbuf);
 
-	PMD_CLEANQ_LOG_TX(DEBUG,
-			"region=%"PRIu32", "
-			"offset=%"PRIu64", "
-			"length=%"PRIu64", "
-			"valid_offset=%"PRIu64", "
-			"valid_length=%"PRIu64,
-			cqbuf.rid,
-			cqbuf.offset,
-			cqbuf.length,
-			cqbuf.valid_data,
-			cqbuf.valid_length
-		);
+	PMD_CLEANQ_LOG_CQBUF(TX, DEBUG, cqbuf);
 
 	*region_id = cqbuf.rid;
     *offset = cqbuf.offset;
@@ -329,17 +323,54 @@ rx_desc_error_to_pkt_flags(uint32_t rx_status)
 	return pkt_flags;
 }
 
-bool ixgbe_rx_cleanq_enqueue(struct ixgbe_rx_queue *rxq, struct rte_mbuf *mb) {
+errval_t ixgbe_rx_cleanq_create(struct ixgbe_rx_queue *rxq)
+{
+	errval_t err;
+	err = cleanq_init((struct cleanq *)rxq);
+	if (err_is_fail(err)) {
+		return err;
+	}
+	rxq->f.enq = ixgbe_rx_cleanq_enqueue;
+	rxq->f.deq = ixgbe_rx_cleanq_dequeue;
+	rxq->f.reg = ixgbe_cleanq_register;
+	rxq->f.dereg = ixgbe_cleanq_deregister;
+	return CLEANQ_ERR_OK;
+}
+
+errval_t ixgbe_rx_cleanq_enqueue(
+    struct cleanq *q,
+    regionid_t region_id,
+    genoffset_t offset,
+    genoffset_t length,
+    genoffset_t valid_offset,
+    genoffset_t valid_length,
+    uint64_t misc_flags)
+{
+	struct ixgbe_rx_queue *rxq = (struct ixgbe_rx_queue *)q;
+
 	volatile union ixgbe_adv_rx_desc *rxdp;
 	struct ixgbe_rx_entry *rxep;
 	uint64_t dma_addr;
+
+	struct rte_mbuf *mb;
+	struct cleanq_buf cqbuf = {
+		.offset = offset,
+		.length = length,
+		.valid_data = valid_offset,
+		.valid_length = valid_length,
+		.flags = misc_flags,
+		.rid = region_id
+	};
+	cleanq_buf_to_mbuf(q, cqbuf, &mb);
+
+	PMD_CLEANQ_LOG_RX(DEBUG, "mbuf: %p", mb);
 
 	/* Always keep one descriptor
 	 * The HW otherwise sees the descriptor ring as full
 	 */
 	if (unlikely(rxq->rx_recl - rxq->rx_tail - 1 == 0)) {
 		PMD_CLEANQ_LOG_RX(NOTICE, "No free descriptor (%"PRIu16")", rxq->rx_tail);
-		return false;
+		return CLEANQ_ERR_QUEUE_FULL;
 	}
 
 	rxep = &rxq->sw_ring[rxq->rx_tail];
@@ -364,11 +395,22 @@ bool ixgbe_rx_cleanq_enqueue(struct ixgbe_rx_queue *rxq, struct rte_mbuf *mb) {
 	}
 
 	IXGBE_PCI_REG_WRITE(rxq->rdt_reg_addr, rxq->rx_tail);
-	return true;
+
+	PMD_CLEANQ_LOG_RX_STATUS(INFO, rxq);
+	return CLEANQ_ERR_OK;
 }
 
-bool ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_mb)
+errval_t ixgbe_rx_cleanq_dequeue(
+    struct cleanq *q,
+    regionid_t* region_id,
+    genoffset_t* offset,
+    genoffset_t* length,
+    genoffset_t* valid_offset,
+    genoffset_t* valid_length,
+    uint64_t* misc_flags)
 {
+	struct ixgbe_rx_queue *rxq = (struct ixgbe_rx_queue *)q;
+
 	volatile union ixgbe_adv_rx_desc *rxdp;
 	struct ixgbe_rx_entry *rxep;
 	struct rte_mbuf *mb;
@@ -380,7 +422,7 @@ bool ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_m
 
     if (unlikely(rxq->rx_recl == rxq->rx_tail)) {
 		PMD_CLEANQ_LOG_RX(NOTICE, "Not descriptors enqueued to HW (%"PRIu16")", rxq->rx_recl);
-		return false;
+		return CLEANQ_ERR_QUEUE_EMPTY;
 	}
 
 	/* get references to current descriptor and S/W ring entry */
@@ -394,7 +436,7 @@ bool ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_m
 	/* Check whether there is a packet to receive */
 	if (!(status & IXGBE_RXDADV_STAT_DD)) {
 		PMD_CLEANQ_LOG_RX(DEBUG, "No buffer to dequeue (%"PRIx32")", status);
-		return false;
+		return CLEANQ_ERR_QUEUE_EMPTY;
 	}
 
 	pkt_info = rte_le_to_cpu_32(rxdp->wb.lower.lo_dword.data);
@@ -433,6 +475,20 @@ bool ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_m
 		rxq->rx_recl = 0;
 	}
 
-	*ret_mb = mb;
-	return true;
+	PMD_CLEANQ_LOG_RX(DEBUG, "mbuf: %p", mb);
+
+	struct cleanq_buf cqbuf;
+	mbuf_to_cleanq_buf(q, mb, &cqbuf);
+
+	PMD_CLEANQ_LOG_CQBUF(RX, DEBUG, cqbuf);
+
+	*region_id = cqbuf.rid;
+    *offset = cqbuf.offset;
+	*length = cqbuf.length;
+    *valid_offset = cqbuf.valid_data;
+    *valid_length = cqbuf.valid_length;
+    *misc_flags = cqbuf.flags;
+
+	PMD_CLEANQ_LOG_RX_STATUS(INFO, rxq);
+	return CLEANQ_ERR_OK;
 }

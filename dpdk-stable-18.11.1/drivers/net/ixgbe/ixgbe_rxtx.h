@@ -97,6 +97,12 @@ struct ixgbe_tx_entry_v {
  * Structure associated with each RX queue.
  */
 struct ixgbe_rx_queue {
+#ifdef RTE_LIBCLEANQ
+	// CleanQ region management
+    struct region_pool* pool;
+    // CleanQ funciton pointers
+    struct cleanq_func_pointer f;
+#endif
 	struct rte_mempool  *mb_pool; /**< mbuf pool to populate RX ring. */
 	volatile union ixgbe_adv_rx_desc *rx_ring; /**< RX ring virtual address. */
 	uint64_t            rx_ring_phys_addr; /**< RX ring DMA address. */

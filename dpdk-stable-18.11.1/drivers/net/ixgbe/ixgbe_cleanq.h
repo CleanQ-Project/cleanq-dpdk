@@ -28,6 +28,18 @@ extern int ixgbe_logtype_cleanq_rx;
 #define PMD_CLEANQ_LOG_RX_STATUS(level, q) \
 	PMD_CLEANQ_LOG_RX(level, "Recl=%"PRIu16", Tail=%"PRIu16"", (q)->rx_recl, (q)->rx_tail)
 
+#define PMD_CLEANQ_LOG_CQBUF(rx_tx, level, cqbuf) \
+    PMD_CLEANQ_LOG_ ## rx_tx(level, "region=%"PRIu32", " \
+        "offset=%"PRIu64", " \
+        "length=%"PRIu64", " \
+        "valid_offset=%"PRIu64", " \
+        "valid_length=%"PRIu64, \
+        (cqbuf).rid, \
+        (cqbuf).offset, \
+        (cqbuf).length, \
+        (cqbuf).valid_data, \
+        (cqbuf).valid_length)
+
 struct ixgbe_tx_queue;
 struct ixgbe_rx_queue;
 
@@ -43,21 +55,41 @@ errval_t ixgbe_cleanq_deregister(
 errval_t ixgbe_tx_cleanq_create(struct ixgbe_tx_queue *txq);
 
 errval_t ixgbe_tx_cleanq_enqueue(
-	struct cleanq *q, regionid_t region_id,
-    genoffset_t offset, genoffset_t length,
+	struct cleanq *q,
+    regionid_t region_id,
+    genoffset_t offset,
+    genoffset_t length,
     genoffset_t valid_offset,
     genoffset_t valid_length,
     uint64_t misc_flags);
 
 errval_t ixgbe_tx_cleanq_dequeue(
-	struct cleanq *q, regionid_t* region_id,
-    genoffset_t* offset, genoffset_t* length,
+	struct cleanq *q,
+    regionid_t* region_id,
+    genoffset_t* offset,
+    genoffset_t* length,
     genoffset_t* valid_offset,
     genoffset_t* valid_length,
     uint64_t* misc_flags);
 
-bool ixgbe_rx_cleanq_enqueue(struct ixgbe_rx_queue *rxq, struct rte_mbuf *mb);
+errval_t ixgbe_rx_cleanq_create(struct ixgbe_rx_queue *rxq);
 
-bool ixgbe_rx_cleanq_dequeue(struct ixgbe_rx_queue *rxq, struct rte_mbuf **ret_mb);
+errval_t ixgbe_rx_cleanq_enqueue(
+    struct cleanq *q,
+    regionid_t region_id,
+    genoffset_t offset,
+    genoffset_t length,
+    genoffset_t valid_offset,
+    genoffset_t valid_length,
+    uint64_t misc_flags);
+
+errval_t ixgbe_rx_cleanq_dequeue(
+    struct cleanq *q,
+    regionid_t* region_id,
+    genoffset_t* offset,
+    genoffset_t* length,
+    genoffset_t* valid_offset,
+    genoffset_t* valid_length,
+    uint64_t* misc_flags);
 
 #endif /* _IXGBE_CLEANQ_H_ */

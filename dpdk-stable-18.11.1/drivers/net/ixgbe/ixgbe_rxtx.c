@@ -1936,7 +1936,7 @@ static uint16_t
 ixgbe_xmit_pkts_cleanq(void *tx_queue, struct rte_mbuf **tx_pkts,
 	     uint16_t nb_pkts)
 {
-	struct cleanq *txq = (struct cleanq *)tx_queue;
+	struct cleanq *q = (struct cleanq *)tx_queue;
 	errval_t err = CLEANQ_ERR_OK;
 	struct cleanq_buf cqbuf;
 
@@ -1944,7 +1944,7 @@ ixgbe_xmit_pkts_cleanq(void *tx_queue, struct rte_mbuf **tx_pkts,
 	struct rte_mbuf *mb;
 	while (err_is_ok(err)) {
 		err = cleanq_dequeue(
-			txq,
+			q,
 			&cqbuf.rid,
 			&cqbuf.offset,
 			&cqbuf.length,
@@ -1953,7 +1953,7 @@ ixgbe_xmit_pkts_cleanq(void *tx_queue, struct rte_mbuf **tx_pkts,
 			&cqbuf.flags
 		);
 		if (err_is_ok(err)) {
-			cleanq_buf_to_mbuf(txq, cqbuf, &mb);
+			cleanq_buf_to_mbuf(q, cqbuf, &mb);
 
 			PMD_CLEANQ_LOG_TX(DEBUG, "mbuf: %p", mb);
 
@@ -1969,22 +1969,12 @@ ixgbe_xmit_pkts_cleanq(void *tx_queue, struct rte_mbuf **tx_pkts,
 			tx_pkts[nb_tx]
 		);
 
-		mbuf_to_cleanq_buf(txq, tx_pkts[nb_tx], &cqbuf);
+		mbuf_to_cleanq_buf(q, tx_pkts[nb_tx], &cqbuf);
 
-		PMD_CLEANQ_LOG_TX(DEBUG,
-			"region=%"PRIu32", "
-			"offset=%"PRIu64", "
-			"length=%"PRIu64", "
-			"valid_offset=%"PRIu64", "
-			"valid_length=%"PRIu64,
-			cqbuf.rid,
-			cqbuf.offset,
-			cqbuf.length,
-			cqbuf.valid_data,
-			cqbuf.valid_length
-		);
+		PMD_CLEANQ_LOG_CQBUF(TX, DEBUG, cqbuf);
+
 		err = cleanq_enqueue(
-			txq,
+			q,
 			cqbuf.rid,
 			cqbuf.offset,
 			cqbuf.length,
@@ -2005,7 +1995,10 @@ static uint16_t
 ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 	     uint16_t nb_pkts)
 {
+	struct cleanq *q = (struct cleanq *)rx_queue;
 	struct ixgbe_rx_queue *rxq = (struct ixgbe_rx_queue *)rx_queue;
+	errval_t err = CLEANQ_ERR_OK;
+	struct cleanq_buf cqbuf;
 
 	/* Refill buffers
 	 * Never enqueue all, as the HW sees this as a full descriptor ring
@@ -2028,21 +2021,50 @@ ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
 			break;
 		}
 
-		if(!ixgbe_rx_cleanq_enqueue(rxq, mb)) {
+		PMD_CLEANQ_LOG_RX(DEBUG, "mbuf: %p", mb);
+
+		mbuf_to_cleanq_buf(q, mb, &cqbuf);
+
+		PMD_CLEANQ_LOG_CQBUF(RX, DEBUG, cqbuf);
+
+		err = cleanq_enqueue(
+			q,
+			cqbuf.rid,
+			cqbuf.offset,
+			cqbuf.length,
+			cqbuf.valid_data,
+			cqbuf.valid_length,
+			cqbuf.flags
+		);
+		if(err_is_fail(err)) {
 			rte_mbuf_raw_free(mb);
 			break;
 		}
-		PMD_CLEANQ_LOG_RX_STATUS(INFO, rxq);
 	}
 
 	uint16_t nb_rx = 0;
 	for (uint16_t i = 0; i < nb_pkts; i++) {
 		/* Try to dequeue */
-		bool has_pkts = ixgbe_rx_cleanq_dequeue(rxq, &rx_pkts[nb_rx]);
-		if(!has_pkts) {
+		err = cleanq_dequeue(
+			q,
+			&cqbuf.rid,
+			&cqbuf.offset,
+			&cqbuf.length,
+			&cqbuf.valid_data,
+			&cqbuf.valid_length,
+			&cqbuf.flags
+		);
+		if(err_is_fail(err)) {
 			break;
 		}
-		PMD_CLEANQ_LOG_RX_STATUS(INFO, rxq);
+
+		cleanq_buf_to_mbuf(q, cqbuf, &rx_pkts[nb_rx]);
+
+		PMD_CLEANQ_LOG_RX(DEBUG, "rx_pkts[%"PRIu16"]: %p",
+			nb_rx,
+			rx_pkts[nb_rx]
+		);
+
 		nb_rx++;
 	}
 
@@ -2511,6 +2533,11 @@ static const struct ixgbe_txq_ops def_txq_ops = {
 void __attribute__((cold))
 ixgbe_set_tx_function(struct rte_eth_dev *dev, struct ixgbe_tx_queue *txq)
 {
+#ifdef RTE_LIBCLEANQ
+	dev->tx_pkt_prepare = NULL;
+	dev->tx_pkt_burst = ixgbe_xmit_pkts_cleanq;
+#endif
+
 	/* Use a simple Tx queue (no offloads, no multi segs) if possible */
 	if ((txq->offloads == 0) &&
 #ifdef RTE_LIBRTE_SECURITY
@@ -2764,12 +2791,10 @@ ixgbe_dev_tx_queue_setup(struct rte_eth_dev *dev,
 		ixgbe_tx_queue_release(txq);
 		return -ENOMEM;
 	}
-	dev->tx_pkt_prepare = NULL;
-	dev->tx_pkt_burst = ixgbe_xmit_pkts_cleanq;
-#else
+#endif
+
 	/* set up vector or scalar TX function as appropriate */
 	ixgbe_set_tx_function(dev, txq);
-#endif
 
 	txq->ops->reset(txq);
 
@@ -3207,6 +3232,14 @@ ixgbe_dev_rx_queue_setup(struct rte_eth_dev *dev,
 		ixgbe_rxq_vec_setup(rxq);
 
 	dev->data->rx_queues[queue_idx] = rxq;
+
+#ifdef RTE_LIBCLEANQ
+	if (err_is_fail(ixgbe_rx_cleanq_create(rxq))) {
+		ixgbe_rx_queue_release(rxq);
+		return -ENOMEM;
+	}
+	cleanq_register_mempool((struct cleanq *)rxq, mp);
+#endif
 
 	ixgbe_reset_rx_queue(adapter, rxq);
 
