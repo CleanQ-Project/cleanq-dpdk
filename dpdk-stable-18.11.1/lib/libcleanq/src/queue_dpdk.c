@@ -64,8 +64,8 @@ cleanq_deregister_mempool(struct cleanq *q, struct rte_mempool *mp)
     struct capref cap;
     regionid_t region_id;
 
-    mempool_to_cap(mp, &cap);
-    region_id = cap.paddr;
+    uint64_t base_addr = mempool_base_addr(mp);
+    region_id = region_with_base_addr(q->pool, base_addr);
 
     return cleanq_deregister(q, region_id, &cap);
 }
