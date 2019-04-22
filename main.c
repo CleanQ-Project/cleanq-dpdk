@@ -90,7 +90,7 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
                 rte_eth_dev_socket_id(port), &txconf);
         if (retval < 0)
             return retval;
-        cleanq_pmd_ixgbe_tx_register(port, q, mbuf_pool, &tx_region);
+        cleanq_pmd_ixgbe_tx_register(port, q, mbuf_pool);
     }
 
     /* Start the Ethernet port. */

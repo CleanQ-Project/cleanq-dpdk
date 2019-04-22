@@ -13,6 +13,7 @@
 #include <rte_mbuf.h>
 #include <rte_ethdev_driver.h>
 
+#include <cleanq.h>
 #include <cleanq_dpdk.h>
 
 #include "ixgbe_ethdev.h"

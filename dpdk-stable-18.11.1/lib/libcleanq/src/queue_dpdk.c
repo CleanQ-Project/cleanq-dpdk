@@ -17,13 +17,38 @@
 
 #include "region_pool.h"
 
-inline void
-membpool_to_cap(struct rte_mempool *pool, struct capref *cap)
+static inline void
+memchunk_to_cap(struct rte_mempool_memhdr *mem_chunk, struct capref *cap)
 {
-    cap->len = pool->mz->len;
+    cap->len = mem_chunk->len;
     // Only use virtual addresses
-    cap->paddr = (uint64_t)pool->mz->addr;
-    cap->vaddr = pool->mz->addr;
+    cap->paddr = (uint64_t)mem_chunk->addr;
+    cap->vaddr = mem_chunk->addr;
+}
+
+errval_t
+cleanq_register_mempool(struct cleanq *q, struct rte_mempool *mp)
+{
+    struct capref cap;
+    regionid_t region_id;
+    errval_t err;
+
+    struct rte_mempool_memhdr *mem_chunk;
+    STAILQ_FOREACH(mem_chunk, &mp->mem_list, next) {
+        memchunk_to_cap(mem_chunk, &cap);
+        err = cleanq_register(q, cap, &region_id);
+        if (err_is_fail(err)) {
+            //TODO: Clean up partial registration of mempool
+            return err;
+        }
+    }
+    return CLEANQ_ERR_OK;
+}
+
+errval_t
+cleanq_deregister_mempool(struct cleanq *q, struct rte_mempool *mp)
+{
+    return CLEANQ_ERR_OK;
 }
 
 inline void

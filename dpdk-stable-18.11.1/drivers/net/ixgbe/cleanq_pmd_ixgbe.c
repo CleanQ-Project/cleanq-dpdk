@@ -7,8 +7,7 @@
 errval_t cleanq_pmd_ixgbe_tx_register(
     uint16_t port_id,
     uint16_t tx_queue_id,
-	struct rte_mempool *mp,
-    regionid_t *region_id)
+	struct rte_mempool *mp)
 {
 	struct rte_eth_dev *dev;
     struct cleanq *q;
@@ -27,15 +26,13 @@ errval_t cleanq_pmd_ixgbe_tx_register(
 	}
 
     q = (struct cleanq *)dev->data->tx_queues[tx_queue_id];
-    
-    membpool_to_cap(mp, &cap);
-    return cleanq_register(q, cap, region_id);
+    return cleanq_register_mempool(q, mp);
 }
 
 errval_t cleanq_pmd_ixgbe_tx_deregister(
     uint16_t port_id,
     uint16_t tx_queue_id,
-    regionid_t region_id)
+    struct rte_mempool *mp)
 {
     struct rte_eth_dev *dev;
     struct cleanq *q;
@@ -54,6 +51,5 @@ errval_t cleanq_pmd_ixgbe_tx_deregister(
 	}
 
     q = (struct cleanq *)dev->data->tx_queues[tx_queue_id];
-
-    return cleanq_deregister(q, region_id, &cap);
+    return cleanq_deregister_mempool(q, mp);
 }

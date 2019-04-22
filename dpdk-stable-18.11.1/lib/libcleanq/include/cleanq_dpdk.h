@@ -14,10 +14,14 @@ struct cleanq;
 struct cleanq_buf;
 struct rte_mbuf;
 struct rte_mempool;
+struct rte_memzone;
 struct capref;
 
-void
-membpool_to_cap(struct rte_mempool *pool, struct capref *cap);
+errval_t
+cleanq_register_mempool(struct cleanq *q, struct rte_mempool *mp);
+
+errval_t
+cleanq_deregister_mempool(struct cleanq *q, struct rte_mempool *mp);
 
 void
 mbuf_to_cleanq_buf(
