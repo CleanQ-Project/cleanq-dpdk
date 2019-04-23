@@ -59,6 +59,9 @@ endif
 LDLIBS += -lrte_eal -lrte_mbuf -lrte_mempool -lrte_ring
 LDLIBS += -lrte_ethdev -lrte_net -lrte_kvargs -lrte_hash
 LDLIBS += -lrte_bus_pci
+ifeq ($(CONFIG_RTE_LIBCLEANQ),y)
+LDLIBS += -lcleanq
+endif
 
 #
 # Add extra flags for base driver files (also known as shared code)
@@ -105,8 +108,15 @@ endif
 SRCS-$(CONFIG_RTE_LIBRTE_IXGBE_PMD) += rte_pmd_ixgbe.c
 SRCS-$(CONFIG_RTE_LIBRTE_IXGBE_PMD) += ixgbe_tm.c
 SRCS-$(CONFIG_RTE_LIBRTE_IXGBE_PMD) += ixgbe_vf_representor.c
+ifeq ($(CONFIG_RTE_LIBCLEANQ),y)
+SRCS-$(CONFIG_RTE_LIBRTE_IXGBE_PMD) += ixgbe_cleanq.c
+SRCS-$(CONFIG_RTE_LIBRTE_IXGBE_PMD) += cleanq_pmd_ixgbe.c
+endif
 
 # install this header file
 SYMLINK-$(CONFIG_RTE_LIBRTE_IXGBE_PMD)-include := rte_pmd_ixgbe.h
+ifeq ($(CONFIG_RTE_LIBCLEANQ),y)
+SYMLINK-$(CONFIG_RTE_LIBRTE_IXGBE_PMD)-include += cleanq_pmd_ixgbe.h
+endif
 
 include $(RTE_SDK)/mk/rte.lib.mk

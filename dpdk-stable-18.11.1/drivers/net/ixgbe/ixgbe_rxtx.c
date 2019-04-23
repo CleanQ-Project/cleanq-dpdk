@@ -43,12 +43,20 @@
 #include <rte_ip.h>
 #include <rte_net.h>
 
+#ifdef RTE_LIBCLEANQ
+#include <cleanq.h>
+#include <cleanq_dpdk.h>
+#endif
+
 #include "ixgbe_logs.h"
 #include "base/ixgbe_api.h"
 #include "base/ixgbe_vf.h"
 #include "ixgbe_ethdev.h"
 #include "base/ixgbe_dcb.h"
 #include "base/ixgbe_common.h"
+#ifdef RTE_LIBCLEANQ
+#include "ixgbe_cleanq.h"
+#endif
 #include "ixgbe_rxtx.h"
 
 #ifdef RTE_LIBRTE_IEEE1588
@@ -1923,6 +1931,147 @@ ixgbe_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 	return nb_rx;
 }
 
+#ifdef RTE_LIBCLEANQ
+static uint16_t
+ixgbe_xmit_pkts_cleanq(void *tx_queue, struct rte_mbuf **tx_pkts,
+	     uint16_t nb_pkts)
+{
+	struct cleanq *q = (struct cleanq *)tx_queue;
+	errval_t err = CLEANQ_ERR_OK;
+	struct cleanq_buf cqbuf;
+
+	/* Dequeue and free all the buffers the HW is finished with */
+	struct rte_mbuf *mb;
+	while (err_is_ok(err)) {
+		err = cleanq_dequeue(
+			q,
+			&cqbuf.rid,
+			&cqbuf.offset,
+			&cqbuf.length,
+			&cqbuf.valid_data,
+			&cqbuf.valid_length,
+			&cqbuf.flags
+		);
+		if (err_is_ok(err)) {
+			cleanq_buf_to_mbuf(q, cqbuf, &mb);
+
+			PMD_CLEANQ_LOG_TX(DEBUG, "mbuf: %p", mb);
+
+			rte_pktmbuf_free_seg(mb);
+		}
+	}
+
+	uint16_t nb_tx = 0;
+	for (uint16_t i = 0; i < nb_pkts; i++) {
+		/* Try to enqueue */
+		PMD_CLEANQ_LOG_TX(DEBUG, "tx_pkts[%"PRIu16"]: %p",
+			nb_tx,
+			tx_pkts[nb_tx]
+		);
+
+		mbuf_to_cleanq_buf(q, tx_pkts[nb_tx], &cqbuf);
+
+		PMD_CLEANQ_LOG_CQBUF(TX, DEBUG, cqbuf);
+
+		err = cleanq_enqueue(
+			q,
+			cqbuf.rid,
+			cqbuf.offset,
+			cqbuf.length,
+			cqbuf.valid_data,
+			cqbuf.valid_length,
+			cqbuf.flags
+		);
+		if(err_is_fail(err)) {
+			break;
+		}
+		nb_tx++;
+	}
+
+	return nb_tx;
+}
+
+static uint16_t
+ixgbe_recv_pkts_cleanq(void *rx_queue, struct rte_mbuf **rx_pkts,
+	     uint16_t nb_pkts)
+{
+	struct cleanq *q = (struct cleanq *)rx_queue;
+	struct ixgbe_rx_queue *rxq = (struct ixgbe_rx_queue *)rx_queue;
+	errval_t err = CLEANQ_ERR_OK;
+	struct cleanq_buf cqbuf;
+
+	/* Refill buffers
+	 * Never enqueue all, as the HW sees this as a full descriptor ring
+	 */
+	int32_t nb_bufs = rxq->rx_recl - rxq->rx_tail - 1;
+	if (nb_bufs < 0) {
+		nb_bufs += rxq->nb_rx_desc;
+	}
+
+	PMD_CLEANQ_LOG_RX(DEBUG, "Refilling %"PRIu16" buffers", nb_bufs);
+
+	for (uint16_t i = 0; i < nb_bufs; i++) {
+		struct rte_mbuf *mb = rte_mbuf_raw_alloc(rxq->mb_pool);
+		if (mb == NULL) {
+			PMD_CLEANQ_LOG_RX(NOTICE, "mbuf alloc failed port_id=%u "
+				"queue_id=%u", (unsigned) rxq->port_id,
+				(unsigned) rxq->queue_id);
+
+			rte_eth_devices[rxq->port_id].data->rx_mbuf_alloc_failed++;
+			break;
+		}
+
+		PMD_CLEANQ_LOG_RX(DEBUG, "mbuf: %p", mb);
+
+		mbuf_to_cleanq_buf(q, mb, &cqbuf);
+
+		PMD_CLEANQ_LOG_CQBUF(RX, DEBUG, cqbuf);
+
+		err = cleanq_enqueue(
+			q,
+			cqbuf.rid,
+			cqbuf.offset,
+			cqbuf.length,
+			cqbuf.valid_data,
+			cqbuf.valid_length,
+			cqbuf.flags
+		);
+		if(err_is_fail(err)) {
+			rte_mbuf_raw_free(mb);
+			break;
+		}
+	}
+
+	uint16_t nb_rx = 0;
+	for (uint16_t i = 0; i < nb_pkts; i++) {
+		/* Try to dequeue */
+		err = cleanq_dequeue(
+			q,
+			&cqbuf.rid,
+			&cqbuf.offset,
+			&cqbuf.length,
+			&cqbuf.valid_data,
+			&cqbuf.valid_length,
+			&cqbuf.flags
+		);
+		if(err_is_fail(err)) {
+			break;
+		}
+
+		cleanq_buf_to_mbuf(q, cqbuf, &rx_pkts[nb_rx]);
+
+		PMD_CLEANQ_LOG_RX(DEBUG, "rx_pkts[%"PRIu16"]: %p",
+			nb_rx,
+			rx_pkts[nb_rx]
+		);
+
+		nb_rx++;
+	}
+
+	return nb_rx;
+}
+#endif
+
 /**
  * Detect an RSC descriptor.
  */
@@ -2357,6 +2506,9 @@ ixgbe_reset_tx_queue(struct ixgbe_tx_queue *txq)
 
 	txq->tx_tail = 0;
 	txq->nb_tx_used = 0;
+#ifdef RTE_LIBCLEANQ
+	txq->tx_recl = 0;
+#endif
 	/*
 	 * Always allow 1 descriptor to be un-allocated to avoid
 	 * a H/W race condition
@@ -2381,6 +2533,11 @@ static const struct ixgbe_txq_ops def_txq_ops = {
 void __attribute__((cold))
 ixgbe_set_tx_function(struct rte_eth_dev *dev, struct ixgbe_tx_queue *txq)
 {
+#ifdef RTE_LIBCLEANQ
+	dev->tx_pkt_prepare = NULL;
+	dev->tx_pkt_burst = ixgbe_xmit_pkts_cleanq;
+#endif
+
 	/* Use a simple Tx queue (no offloads, no multi segs) if possible */
 	if ((txq->offloads == 0) &&
 #ifdef RTE_LIBRTE_SECURITY
@@ -2628,6 +2785,14 @@ ixgbe_dev_tx_queue_setup(struct rte_eth_dev *dev,
 	PMD_INIT_LOG(DEBUG, "sw_ring=%p hw_ring=%p dma_addr=0x%"PRIx64,
 		     txq->sw_ring, txq->tx_ring, txq->tx_ring_phys_addr);
 
+	
+#ifdef RTE_LIBCLEANQ
+	if (err_is_fail(ixgbe_tx_cleanq_create(txq))) {
+		ixgbe_tx_queue_release(txq);
+		return -ENOMEM;
+	}
+#endif
+
 	/* set up vector or scalar TX function as appropriate */
 	ixgbe_set_tx_function(dev, txq);
 
@@ -2810,6 +2975,10 @@ ixgbe_reset_rx_queue(struct ixgbe_adapter *adapter, struct ixgbe_rx_queue *rxq)
 #ifdef RTE_IXGBE_INC_VECTOR
 	rxq->rxrearm_start = 0;
 	rxq->rxrearm_nb = 0;
+#endif
+
+#ifdef RTE_LIBCLEANQ
+	rxq->rx_recl = 0;
 #endif
 }
 
@@ -3063,6 +3232,14 @@ ixgbe_dev_rx_queue_setup(struct rte_eth_dev *dev,
 		ixgbe_rxq_vec_setup(rxq);
 
 	dev->data->rx_queues[queue_idx] = rxq;
+
+#ifdef RTE_LIBCLEANQ
+	if (err_is_fail(ixgbe_rx_cleanq_create(rxq))) {
+		ixgbe_rx_queue_release(rxq);
+		return -ENOMEM;
+	}
+	cleanq_register_mempool((struct cleanq *)rxq, mp);
+#endif
 
 	ixgbe_reset_rx_queue(adapter, rxq);
 
@@ -4570,6 +4747,11 @@ ixgbe_set_ivar(struct rte_eth_dev *dev, u8 entry, u8 vector, s8 type)
 void __attribute__((cold))
 ixgbe_set_rx_function(struct rte_eth_dev *dev)
 {
+#ifdef RTE_LIBCLEANQ
+	dev->rx_pkt_burst = ixgbe_recv_pkts_cleanq;
+	return;
+#endif
+	
 	uint16_t i, rx_using_sse;
 	struct ixgbe_adapter *adapter =
 		(struct ixgbe_adapter *)dev->data->dev_private;
@@ -5187,12 +5369,14 @@ ixgbe_dev_rx_queue_start(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 
 	rxq = dev->data->rx_queues[rx_queue_id];
 
+#ifndef RTE_LIBCLEANQ
 	/* Allocate buffers for descriptor rings */
 	if (ixgbe_alloc_rx_queue_mbufs(rxq) != 0) {
 		PMD_INIT_LOG(ERR, "Could not alloc mbuf for queue:%d",
 			     rx_queue_id);
 		return -1;
 	}
+#endif
 	rxdctl = IXGBE_READ_REG(hw, IXGBE_RXDCTL(rxq->reg_idx));
 	rxdctl |= IXGBE_RXDCTL_ENABLE;
 	IXGBE_WRITE_REG(hw, IXGBE_RXDCTL(rxq->reg_idx), rxdctl);
@@ -5207,7 +5391,11 @@ ixgbe_dev_rx_queue_start(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 		PMD_INIT_LOG(ERR, "Could not enable Rx Queue %d", rx_queue_id);
 	rte_wmb();
 	IXGBE_WRITE_REG(hw, IXGBE_RDH(rxq->reg_idx), 0);
+#ifdef RTE_LIBCLEANQ
+	IXGBE_WRITE_REG(hw, IXGBE_RDT(rxq->reg_idx), rxq->rx_tail);
+#else
 	IXGBE_WRITE_REG(hw, IXGBE_RDT(rxq->reg_idx), rxq->nb_rx_desc - 1);
+#endif
 	dev->data->rx_queue_state[rx_queue_id] = RTE_ETH_QUEUE_STATE_STARTED;
 
 	return 0;
@@ -5287,7 +5475,11 @@ ixgbe_dev_tx_queue_start(struct rte_eth_dev *dev, uint16_t tx_queue_id)
 				tx_queue_id);
 	}
 	rte_wmb();
+#ifdef RTE_LIBCLEANQ
+	IXGBE_WRITE_REG(hw, IXGBE_TDT(txq->reg_idx), txq->tx_tail);
+#else
 	IXGBE_WRITE_REG(hw, IXGBE_TDT(txq->reg_idx), 0);
+#endif
 	dev->data->tx_queue_state[tx_queue_id] = RTE_ETH_QUEUE_STATE_STARTED;
 
 	return 0;

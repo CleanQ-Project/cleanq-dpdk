@@ -5,6 +5,10 @@
 #ifndef _IXGBE_RXTX_H_
 #define _IXGBE_RXTX_H_
 
+#ifdef RTE_LIBCLEANQ
+#include <cleanq_module.h>
+#endif
+
 /*
  * Rings setup and release.
  *
@@ -93,6 +97,12 @@ struct ixgbe_tx_entry_v {
  * Structure associated with each RX queue.
  */
 struct ixgbe_rx_queue {
+#ifdef RTE_LIBCLEANQ
+	// CleanQ region management
+    struct region_pool* pool;
+    // CleanQ funciton pointers
+    struct cleanq_func_pointer f;
+#endif
 	struct rte_mempool  *mb_pool; /**< mbuf pool to populate RX ring. */
 	volatile union ixgbe_adv_rx_desc *rx_ring; /**< RX ring virtual address. */
 	uint64_t            rx_ring_phys_addr; /**< RX ring DMA address. */
@@ -105,6 +115,9 @@ struct ixgbe_rx_queue {
 	uint64_t            mbuf_initializer; /**< value to init mbufs */
 	uint16_t            nb_rx_desc; /**< number of RX descriptors. */
 	uint16_t            rx_tail;  /**< current value of RDT register. */
+#ifdef RTE_LIBCLEANQ
+	uint16_t			rx_recl;  /**< Latest reclaimed buffer */
+#endif
 	uint16_t            nb_rx_hold; /**< number of held free RX desc. */
 	uint16_t rx_nb_avail; /**< nr of staged pkts ready to ret to app */
 	uint16_t rx_next_avail; /**< idx of next staged pkt to ret to app */
@@ -193,6 +206,12 @@ struct ixgbe_advctx_info {
  * Structure associated with each TX queue.
  */
 struct ixgbe_tx_queue {
+#ifdef RTE_LIBCLEANQ
+	// CleanQ region management
+    struct region_pool* pool;
+    // CleanQ funciton pointers
+    struct cleanq_func_pointer f;
+#endif
 	/** TX ring virtual address. */
 	volatile union ixgbe_adv_tx_desc *tx_ring;
 	uint64_t            tx_ring_phys_addr; /**< TX ring DMA address. */
@@ -203,6 +222,9 @@ struct ixgbe_tx_queue {
 	volatile uint32_t   *tdt_reg_addr; /**< Address of TDT register. */
 	uint16_t            nb_tx_desc;    /**< number of TX descriptors. */
 	uint16_t            tx_tail;       /**< current value of TDT reg. */
+#ifdef RTE_LIBCLEANQ
+	uint16_t			tx_recl;  /**< Latest reclaimed buffer */
+#endif
 	/**< Start freeing TX buffers if there are less free descriptors than
 	     this value. */
 	uint16_t            tx_free_thresh;
