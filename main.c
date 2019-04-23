@@ -22,14 +22,19 @@
 #define MBUF_CACHE_SIZE 250
 #define BURST_SIZE 32
 
+// #define ACTIVATE_LOG
 #define DRIVER_LOG_LEVEL RTE_LOG_WARNING
 #define CLEANQ_TX_LOG_LEVEL RTE_LOG_WARNING
 #define CLEANQ_RX_LOG_LEVEL RTE_LOG_WARNING
 #define MAIN_LOG_LEVEL RTE_LOG_INFO
 
 int logtype;
+#ifdef ACTIVATE_LOG
 #define LOG(level, fmt, args...) \
 	rte_log(RTE_LOG_ ## level, logtype, fmt , ##args)
+#else
+#define LOG(level, fmt, args...) do { } while(0)
+#endif
 
 static const struct rte_eth_conf port_conf_default = {
     .rxmode = {
