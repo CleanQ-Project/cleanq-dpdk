@@ -16,6 +16,7 @@
 #define BENCH_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <sys/cdefs.h>
 
 typedef uint64_t cycles_t;
@@ -104,7 +105,7 @@ void bench_ctl_destroy(bench_ctl_t *ctl);
  * be called before any calls to bench_ctl_add_run().
  *
  * @param ctl      Control handle
- * @param dry_runs Number of dry runs
+ * @param dry_runs Number of dry runsSRCS-$(CONFIG_RTE_LIBCLEANQ) += bench/bench.c
  */
 void bench_ctl_dry_runs(bench_ctl_t *ctl,
                         size_t       dry_runs);

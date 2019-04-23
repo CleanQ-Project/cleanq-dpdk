@@ -22,9 +22,12 @@ SRCS-$(CONFIG_RTE_LIBCLEANQ) += queue_interface.c
 SRCS-$(CONFIG_RTE_LIBCLEANQ) += region_pool.c
 SRCS-$(CONFIG_RTE_LIBCLEANQ) += region.c
 SRCS-$(CONFIG_RTE_LIBCLEANQ) += slab.c
+SRCS-$(CONFIG_RTE_LIBCLEANQ) += bench/bench.c
+SRCS-$(CONFIG_RTE_LIBCLEANQ) += bench/bench_ctl.c
+
 
 # install this header file
-SYMLINK-$(CONFIG_RTE_LIBCLEANQ)-include := bench.h
+SYMLINK-$(CONFIG_RTE_LIBCLEANQ)-include := cleanq_bench.h
 SYMLINK-$(CONFIG_RTE_LIBCLEANQ)-include += cleanq_dpdk.h
 SYMLINK-$(CONFIG_RTE_LIBCLEANQ)-include += cleanq_module.h
 SYMLINK-$(CONFIG_RTE_LIBCLEANQ)-include += cleanq.h

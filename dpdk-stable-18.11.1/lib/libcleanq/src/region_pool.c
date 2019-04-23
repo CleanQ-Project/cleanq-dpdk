@@ -12,7 +12,7 @@
 #include <stdbool.h>
 #include <time.h>
 
-#include <bench.h>
+#include <cleanq_bench.h>
 
 #include "slab.h"
 #include "region_pool.h"

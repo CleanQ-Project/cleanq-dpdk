@@ -11,8 +11,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-#include <bench.h>
 #include <inttypes.h>
+
+#include <cleanq_bench.h>
 
 bench_ctl_t *bench_ctl_init(enum bench_ctl_mode mode,
                             size_t              dimensions,

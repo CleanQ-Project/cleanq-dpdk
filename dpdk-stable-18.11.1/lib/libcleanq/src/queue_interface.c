@@ -11,7 +11,7 @@
 
 #include <cleanq.h>
 #include <cleanq_module.h>
-#include <bench.h>
+#include <cleanq_bench.h>
 
 #include "region_pool.h"
 #include "dqi_debug.h"

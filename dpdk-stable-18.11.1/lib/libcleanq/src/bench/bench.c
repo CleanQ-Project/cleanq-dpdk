@@ -15,7 +15,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <limits.h>
-#include <bench.h>
+
+#include <cleanq_bench.h>
 
 static cycles_t tsc_overhead;
 
