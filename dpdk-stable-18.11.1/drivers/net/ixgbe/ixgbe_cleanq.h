@@ -13,17 +13,25 @@
 #include <cleanq_module.h>
 
 extern int ixgbe_logtype_cleanq_tx;
+#ifdef RTE_LIBRTE_IXGBE_DEBUG_CLEANQ_TX
 #define PMD_CLEANQ_LOG_TX(level, fmt, args...) \
 	rte_log(RTE_LOG_ ## level, ixgbe_logtype_cleanq_tx, \
 		"%s(): TX: " fmt "\n", __func__, ##args)
+#else
+#define PMD_CLEANQ_LOG_TX(level, fmt, args...) do { } while(0)
+#endif
 
 #define PMD_CLEANQ_LOG_TX_STATUS(level, q) \
 	PMD_CLEANQ_LOG_TX(level, "Recl=%"PRIu16", Tail=%"PRIu16"", (q)->tx_recl, (q)->tx_tail)
 
 extern int ixgbe_logtype_cleanq_rx;
+#ifdef RTE_LIBRTE_IXGBE_DEBUG_CLEANQ_RX
 #define PMD_CLEANQ_LOG_RX(level, fmt, args...) \
 	rte_log(RTE_LOG_ ## level, ixgbe_logtype_cleanq_rx, \
 		"%s(): RX: " fmt "\n", __func__, ##args)
+#else
+#define PMD_CLEANQ_LOG_RX(level, fmt, args...) do { } while(0)
+#endif
 
 #define PMD_CLEANQ_LOG_RX_STATUS(level, q) \
 	PMD_CLEANQ_LOG_RX(level, "Recl=%"PRIu16", Tail=%"PRIu16"", (q)->rx_recl, (q)->rx_tail)
