@@ -19,6 +19,7 @@ VPATH += $(SRCDIR)/src
 # all source are stored in SRCS-y
 SRCS-$(CONFIG_RTE_LIBCLEANQ) := cleanq_module_ip.c
 SRCS-$(CONFIG_RTE_LIBCLEANQ) += cleanq_module_udp.c
+SRCS-$(CONFIG_RTE_LIBCLEANQ) += inet_chksum.c
 
 
 # install this header file

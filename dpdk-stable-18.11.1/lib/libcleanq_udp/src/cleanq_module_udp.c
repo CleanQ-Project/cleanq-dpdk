@@ -17,6 +17,7 @@
 #include <cleanq_udp.h>
 
 #include <arpa/inet.h>
+#include "inet_chksum.h"
 
 #define MAX_NUM_REGIONS 64
 

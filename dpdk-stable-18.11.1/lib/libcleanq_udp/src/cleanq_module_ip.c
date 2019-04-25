@@ -17,6 +17,7 @@
 #include <cleanq_pkt_headers.h>
 
 #include <arpa/inet.h>
+#include "inet_chksum.h"
 
 #define MAX_NUM_REGIONS 64
 
@@ -150,9 +151,7 @@ static errval_t ip_enqueue(struct cleanq* q, regionid_t rid,
               length, valid_length);
         assert(valid_length <= 1500);    
         que->header.ip._len = htons(valid_length + IP_HLEN);   
-        que->header.ip._chksum = 0;
-        // TODO compute checksum !!
-        que->header.ip._chksum = 0; //rte_ipv4_cksum(&que->header.ip);
+        que->header.ip._chksum = inet_chksum(&que->header.ip, sizeof(que->hdr_len));
 
         assert(que->regions[rid % MAX_NUM_REGIONS].va != NULL);
 
@@ -203,7 +202,7 @@ static errval_t ip_enqueue(struct cleanq* q, regionid_t rid,
 #endif
     } 
 
-    return -1;
+    return CLEANQ_ERR_UNKNOWN_FLAG;
 }
 
 static errval_t ip_dequeue(struct cleanq* q, regionid_t* rid, genoffset_t* offset,
@@ -250,20 +249,18 @@ static errval_t ip_dequeue(struct cleanq* q, regionid_t* rid, genoffset_t* offse
                                          *offset + *valid_data);
  
         // IP checksum
-        /* TODO compute checkusm
-        if (header->ip.hdr_checksum == rte_ipv4_cksum(&header->ip)) {
+        if (header->ip._chksum == inet_chksum(&header->ip, que->hdr_len)) {
             printf("IP queue: dropping packet wrong checksum \n");
             err = que->rx->f.enq(que->rx, *rid, *offset, *length, 0, 0, NETIF_RXFLAG);
-            return -1;
+            return CLEANQ_ERR_IP_CHKSUM;
         }
-        */
 
         // Correct ip for this queue?
         if (header->ip.src != que->header.ip.dest) {
             printf("IP queue: dropping packet, wrong IP is %d should be %d\n",
                    header->ip.src, que->header.ip.dest);
             err = que->rx->f.enq(que->rx, *rid, *offset, *length, 0, 0, NETIF_RXFLAG);
-            return -1;
+            return CLEANQ_ERR_IP_WRONG_IP;
         }
         
 #ifdef DEBUG_ENABLED
