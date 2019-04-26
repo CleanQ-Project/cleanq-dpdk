@@ -113,7 +113,8 @@ static errval_t udp_enqueue(struct cleanq* q, regionid_t rid,
         DEBUG("TX rid: %d offset %ld length %ld valid_length %ld \n", rid, offset, 
               length, valid_length);
         assert(valid_length <= 1500);    
-        que->header.len = htons(valid_length + UDP_HLEN);
+        //que->header.len = htons(valid_length + UDP_HLEN);
+        que->header.len = htons(valid_length - IP_HLEN - ETH_HLEN);
 
         assert(que->regions[rid % MAX_NUM_REGIONS].va != NULL);
 
@@ -123,7 +124,7 @@ static errval_t udp_enqueue(struct cleanq* q, regionid_t rid,
         memcpy(start, &que->header, sizeof(que->header));   
 
         return que->q->f.enq(que->q, rid, offset, length, valid_data, 
-                             valid_length + UDP_HLEN, flags);
+                             valid_length, flags);
     } 
 
     if (flags & NETIF_RXFLAG) {
@@ -157,7 +158,7 @@ static errval_t udp_dequeue(struct cleanq* q, regionid_t* rid, genoffset_t* offs
 
         struct udp_hdr* header = (struct udp_hdr*) 
                                  ((uint8_t*)(que->regions[*rid % MAX_NUM_REGIONS].va) +
-                                 *offset + *valid_data);
+                                 *offset + *valid_data + IP_HLEN + ETH_HLEN + 128);
  
         // Correct port for this queue?
         if (header->dest != que->header.dest) {
@@ -171,8 +172,8 @@ static errval_t udp_dequeue(struct cleanq* q, regionid_t* rid, genoffset_t* offs
         print_buffer((uint8_t*) que->regions[*rid % MAX_NUM_REGIONS].va + *offset, *valid_length);
 #endif
 
-        *valid_length = ntohs(header->len) - UDP_HLEN;
-        *valid_data += UDP_HLEN;
+        //*valid_length = ntohs(header->len) - UDP_HLEN;
+        //*valid_data += UDP_HLEN;
         //print_buffer(que, que->regions[*rid % MAX_NUM_REGIONS].va + *offset+ *valid_data, *valid_length);
         return CLEANQ_ERR_OK;
     }

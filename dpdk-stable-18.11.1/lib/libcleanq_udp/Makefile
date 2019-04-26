@@ -8,7 +8,6 @@ LIB = libcleanq_udp.a
 
 CFLAGS += $(WERROR_FLAGS) -I$(SRCDIR)/include -O3
 
-LDLIBS += -lrte_mbuf
 LDLIBS += -libcleanq
 
 LIBABIVER := 5
@@ -23,8 +22,8 @@ SRCS-$(CONFIG_RTE_LIBCLEANQ) += inet_chksum.c
 
 
 # install this header file
-SYMLINK-$(CONFIG_RTE_LIBCLEANQ)-include := cleanq_module_ip.h
-SYMLINK-$(CONFIG_RTE_LIBCLEANQ)-include := cleanq_module_udp.h
-SYMLINK-$(CONFIG_RTE_LIBCLEANQ)-include := cleanq_pkt_headers.h
+SYMLINK-$(CONFIG_RTE_LIBCLEANQ)-include := cleanq_ip.h
+SYMLINK-$(CONFIG_RTE_LIBCLEANQ)-include += cleanq_udp.h
+SYMLINK-$(CONFIG_RTE_LIBCLEANQ)-include += cleanq_pkt_headers.h
 
 include $(RTE_SDK)/mk/rte.lib.mk

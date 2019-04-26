@@ -21,11 +21,11 @@
 
 #define MAX_NUM_REGIONS 64
 
-//#define DEBUG_ENABLED
+#define DEBUG_ENABLED
 
 #if defined(DEBUG_ENABLED) 
-#define DEBUG(x...) do { printf("IP_QUEUE: %s.%d:%s:%d: ", \
-            disp_name(), disp_get_core_id(), __func__, __LINE__); \
+#define DEBUG(x...) do { printf("IP_QUEUE: %s:%d: ", \
+                 __func__, __LINE__); \
                 printf(x);\
         } while (0)
 
@@ -150,13 +150,14 @@ static errval_t ip_enqueue(struct cleanq* q, regionid_t rid,
         DEBUG("TX rid: %d offset %ld length %ld valid_length %ld \n", rid, offset, 
               length, valid_length);
         assert(valid_length <= 1500);    
-        que->header.ip._len = htons(valid_length + IP_HLEN);   
+        //que->header.ip._len = htons(valid_length + IP_HLEN);   
+        que->header.ip._len = htons(valid_length - ETH_HLEN);   
         que->header.ip._chksum = inet_chksum(&que->header.ip, sizeof(que->hdr_len));
 
         assert(que->regions[rid % MAX_NUM_REGIONS].va != NULL);
 
         uint8_t* start = (uint8_t*) que->regions[rid % MAX_NUM_REGIONS].va + 
-                         offset + valid_data;   
+                         offset + valid_data + UDP_HLEN;   
 
         memcpy(start, &que->header, sizeof(que->header));   
 
@@ -166,7 +167,7 @@ static errval_t ip_enqueue(struct cleanq* q, regionid_t rid,
             
         b_start = rdtscp();
         err = que->tx->f.enq(que->q, rid, offset, length, valid_data, 
-                            valid_length+sizeof(struct pkt_ip_headers), flags);
+                            valid_length, flags);
         b_end = rdtscp();
         if (err_is_ok(err)) {
             uint64_t res = b_end - b_start;
@@ -175,7 +176,7 @@ static errval_t ip_enqueue(struct cleanq* q, regionid_t rid,
         return err;
 #else
         return que->tx->f.enq(que->tx, rid, offset, length, valid_data, 
-                             valid_length+sizeof(struct pkt_ip_headers), flags);
+                             valid_length, flags);
 #endif
     } 
 
@@ -246,20 +247,23 @@ static errval_t ip_dequeue(struct cleanq* q, regionid_t* rid, genoffset_t* offse
 
         struct pkt_ip_headers* header = (struct pkt_ip_headers*) 
                                         (((uint8_t*) que->regions[*rid % MAX_NUM_REGIONS].va) +
-                                         *offset + *valid_data);
+                                         *offset + *valid_data + 128);
  
         // IP checksum
         if (header->ip._chksum == inet_chksum(&header->ip, que->hdr_len)) {
-            printf("IP queue: dropping packet wrong checksum \n");
+            DEBUG("IP queue: dropping packet wrong checksum \n");
             err = que->rx->f.enq(que->rx, *rid, *offset, *length, 0, 0, NETIF_RXFLAG);
             return CLEANQ_ERR_IP_CHKSUM;
         }
 
         // Correct ip for this queue?
-        if (header->ip.src != que->header.ip.dest) {
-            printf("IP queue: dropping packet, wrong IP is %d should be %d\n",
-                   header->ip.src, que->header.ip.dest);
-            err = que->rx->f.enq(que->rx, *rid, *offset, *length, 0, 0, NETIF_RXFLAG);
+        if (ntohl(header->ip.src) != que->header.ip.dest) {
+            DEBUG("IP queue: dropping packet, wrong IP is %d should be %d\n",
+                   ntohl(header->ip.src), que->header.ip.dest);
+            print_buffer(que, que->regions[*rid % MAX_NUM_REGIONS].va + *offset + *valid_data + 128, 
+			 *valid_length);
+            err = que->rx->f.enq(que->rx, *rid, *offset, *length, *valid_data, 
+			    	 *valid_length, NETIF_RXFLAG);
             return CLEANQ_ERR_IP_WRONG_IP;
         }
         
@@ -267,8 +271,8 @@ static errval_t ip_dequeue(struct cleanq* q, regionid_t* rid, genoffset_t* offse
         print_buffer(que, que->regions[*rid % MAX_NUM_REGIONS].va + *offset, *valid_length);
 #endif
 
-        *valid_data = IP_HLEN + ETH_HLEN;
-        *valid_length = ntohs(header->ip._len) - IP_HLEN;
+        //*valid_data += IP_HLEN + ETH_HLEN + 128;
+        //*valid_length = ntohs(header->ip._len) - IP_HLEN;
         //print_buffer(que, que->regions[*rid % MAX_NUM_REGIONS].va + *offset+ *valid_data, *valid_length);
         //
 
