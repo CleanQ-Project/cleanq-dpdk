@@ -17,11 +17,12 @@
 #include <cleanq_pkt_headers.h>
 
 #include <arpa/inet.h>
+#include <rte_ip.h>
 #include "inet_chksum.h"
 
 #define MAX_NUM_REGIONS 64
 
-#define DEBUG_ENABLED
+//#define DEBUG_ENABLED
 
 #if defined(DEBUG_ENABLED) 
 #define DEBUG(x...) do { printf("IP_QUEUE: %s:%d: ", \
@@ -66,7 +67,7 @@ struct ip_q {
 static void print_buffer(struct ip_q* q, void* start, uint64_t len)
 {
     uint8_t* buf = (uint8_t*) start;
-    printf("Packet in region at address %p len %zu \n",
+    printf("IP header Packet in region at address %p len %zu \n",
            buf, len);
     for (int i = 0; i < len; i+=2) {
         if (((i % 16) == 0) && i > 0) {
@@ -144,21 +145,21 @@ static errval_t ip_enqueue(struct cleanq* q, regionid_t rid,
 
     // for now limit length
     //  TODO fragmentation
-
     struct ip_q* que = (struct ip_q*) q;
     if (flags & NETIF_TXFLAG) {
         
-        DEBUG("TX rid: %d offset %ld length %ld valid_length %ld \n", rid, offset, 
-              length, valid_length);
+        DEBUG("TX rid: %d offset %ld length %ld valid_length %ld valid_ata %ld \n", 
+              rid, offset, length, valid_length, valid_data);
         assert(valid_length <= 1500);    
         //que->header.ip._len = htons(valid_length + IP_HLEN);   
-        que->header.ip._len = htons(valid_length - ETH_HLEN);   
-        que->header.ip._chksum = inet_chksum(&que->header.ip, sizeof(que->hdr_len));
+        que->header.ip._len = htons(valid_length - UDP_HLEN - ETH_HLEN);   
+        que->header.ip._chksum = 0;
+        que->header.ip._chksum = rte_ipv4_cksum((struct ipv4_hdr*) &que->header.ip);
 
         assert(que->regions[rid % MAX_NUM_REGIONS].va != NULL);
 
         uint8_t* start = (uint8_t*) que->regions[rid % MAX_NUM_REGIONS].va + 
-                         offset + valid_data + UDP_HLEN;   
+                         offset + valid_data + 128;   
 
         memcpy(start, &que->header, sizeof(que->header));   
 
@@ -251,18 +252,21 @@ static errval_t ip_dequeue(struct cleanq* q, regionid_t* rid, genoffset_t* offse
                                          *offset + *valid_data + 128);
  
         // IP checksum
-        if (header->ip._chksum == inet_chksum(&header->ip, que->hdr_len)) {
-            DEBUG("IP queue: dropping packet wrong checksum \n");
-            err = que->rx->f.enq(que->rx, *rid, *offset, *length, 0, 0, NETIF_RXFLAG);
+	/*
+	uint16_t chksum = rte_ipv4_cksum((const struct ipv4_hdr *) &header->ip);
+	//uint16_t chksum = inet_chksum(&(header->ip), IP_HLEN);
+        if (header->ip._chksum != chksum) {
+            DEBUG("IP queue: dropping packet wrong checksum is %x should be %x\n",
+	          header->ip._chksum, chksum);
+            err = que->rx->f.enq(que->rx, *rid, *offset, *length, *valid_data, *valid_length, 
+                                 NETIF_RXFLAG);
             return CLEANQ_ERR_IP_CHKSUM;
         }
-
+	*/
         // Correct ip for this queue?
-        if (ntohl(header->ip.src) != que->header.ip.dest) {
+        if (header->ip.src != que->header.ip.dest) {
             DEBUG("IP queue: dropping packet, wrong IP is %d should be %d\n",
-                   ntohl(header->ip.src), que->header.ip.dest);
-            print_buffer(que, ((uint8_t*) que->regions[*rid % MAX_NUM_REGIONS].va) + *offset + 
-			 *valid_data + 128, *valid_length);
+                  header->ip.src, que->header.ip.dest);
             err = que->rx->f.enq(que->rx, *rid, *offset, *length, *valid_data, 
 			    	 *valid_length, NETIF_RXFLAG);
             return CLEANQ_ERR_IP_WRONG_IP;
@@ -271,9 +275,7 @@ static errval_t ip_dequeue(struct cleanq* q, regionid_t* rid, genoffset_t* offse
 	if (header->ip._proto != que->proto) {
             DEBUG("IP queue: dropping packet wrong protocol is %d should be %d \n", 
                   header->ip._proto, que->proto);
-	   
-            print_buffer(que, ((uint8_t*) que->regions[*rid % MAX_NUM_REGIONS].va) + *offset + 
-			 *valid_data + 128, *valid_length);
+	  
             err = que->rx->f.enq(que->rx, *rid, *offset, *length, *valid_data, 
 			    	 *valid_length, NETIF_RXFLAG);
             return CLEANQ_ERR_IP_WRONG_PROTO;
@@ -329,8 +331,9 @@ errval_t ip_create(struct ip_q** q, struct cleanq* nic_rx, struct cleanq* nic_tx
 
     // fill in header that is reused for each packet
     // Ethernet
-    memcpy(&(que->header.eth.dest), &dst_mac, ETH_HWADDR_LEN);
-    memcpy(&(que->header.eth.src), &src_mac, ETH_HWADDR_LEN);
+    memcpy(&(que->header.eth.dest), dst_mac, ETH_HWADDR_LEN);
+    memcpy(&(que->header.eth.src), src_mac, ETH_HWADDR_LEN);
+
     que->header.eth.type = htons(ETHTYPE_IP);
     que->rx = nic_rx;
     que->tx = nic_tx;
@@ -339,11 +342,10 @@ errval_t ip_create(struct ip_q** q, struct cleanq* nic_rx, struct cleanq* nic_tx
     que->header.ip._v_hl = 69;
     IPH_TOS_SET(&que->header.ip, 0x0);
     IPH_ID_SET(&que->header.ip, htons(0x3));
-    que->header.ip._offset = htons(IP_DF);
-    que->header.ip._tos = 0x11; // IP
+    que->header.ip._offset = htons(IP_DF); // htons?
     que->header.ip._ttl = 0x40; // 64
     que->header.ip.src = src_ip;
-    que->header.ip.dest = htonl(dst_ip);
+    que->header.ip.dest = dst_ip;
 
     que->my_q.f.reg = ip_register;
     que->my_q.f.dereg = ip_deregister;
@@ -357,6 +359,7 @@ errval_t ip_create(struct ip_q** q, struct cleanq* nic_rx, struct cleanq* nic_tx
         case UDP_PROT:
             que->hdr_len = IP_HLEN + sizeof(struct udp_hdr);
 	    que->proto = IP_PROTO_UDP;
+	    que->header.ip._proto = IP_PROTO_UDP;
             break;
         case TCP_PROT:
             // TODO

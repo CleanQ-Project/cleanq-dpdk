@@ -21,7 +21,7 @@
 
 #define MAX_NUM_REGIONS 64
 
-#define DEBUG_ENABLED
+//#define DEBUG_ENABLED
 
 #if defined(DEBUG_ENABLED) 
 #define DEBUG(x...) do { printf("UDP_QUEUE:%s:%d: ", \
@@ -110,16 +110,16 @@ static errval_t udp_enqueue(struct cleanq* q, regionid_t rid,
     struct udp_q* que = (struct udp_q*) q;
     if (flags & NETIF_TXFLAG) {
         
-        DEBUG("TX rid: %d offset %ld length %ld valid_length %ld \n", rid, offset, 
-              length, valid_length);
+        DEBUG("TX rid: %d offset %ld length %ld valid_length %ld valid_data %ld \n", rid, offset, 
+              length, valid_length, valid_data);
         assert(valid_length <= 1500);    
         //que->header.len = htons(valid_length + UDP_HLEN);
-        que->header.len = htons(valid_length - IP_HLEN - ETH_HLEN);
+        que->header.len = htons(valid_length - UDP_HLEN - IP_HLEN - ETH_HLEN);
 
         assert(que->regions[rid % MAX_NUM_REGIONS].va != NULL);
 
         uint8_t* start = ((uint8_t*) que->regions[rid % MAX_NUM_REGIONS].va) + 
-                         offset + valid_data + ETH_HLEN + IP_HLEN;   
+                         offset + valid_data + ETH_HLEN + IP_HLEN + 128;   
 
         memcpy(start, &que->header, sizeof(que->header));   
 
@@ -129,7 +129,7 @@ static errval_t udp_enqueue(struct cleanq* q, regionid_t rid,
 
     if (flags & NETIF_RXFLAG) {
         assert(valid_length <= 2048);    
-        printf("RX rid: %d offset %ld length %ld valid_length %ld \n", rid, offset, 
+        DEBUG("RX rid: %d offset %ld length %ld valid_length %ld \n", rid, offset, 
               length, valid_length);
         return que->q->f.enq(que->q, rid, offset, length, valid_data, 
                              valid_length, flags);
