@@ -50,6 +50,7 @@ struct ip_q {
     struct pkt_ip_headers header; // can fill in this header and reuse it by copying
     struct region_vaddr regions[MAX_NUM_REGIONS];
     uint16_t hdr_len;
+    uint8_t proto;
 
     const char* name;
 #ifdef BENCH
@@ -260,13 +261,23 @@ static errval_t ip_dequeue(struct cleanq* q, regionid_t* rid, genoffset_t* offse
         if (ntohl(header->ip.src) != que->header.ip.dest) {
             DEBUG("IP queue: dropping packet, wrong IP is %d should be %d\n",
                    ntohl(header->ip.src), que->header.ip.dest);
-            print_buffer(que, que->regions[*rid % MAX_NUM_REGIONS].va + *offset + *valid_data + 128, 
-			 *valid_length);
+            print_buffer(que, ((uint8_t*) que->regions[*rid % MAX_NUM_REGIONS].va) + *offset + 
+			 *valid_data + 128, *valid_length);
             err = que->rx->f.enq(que->rx, *rid, *offset, *length, *valid_data, 
 			    	 *valid_length, NETIF_RXFLAG);
             return CLEANQ_ERR_IP_WRONG_IP;
         }
         
+	if (header->ip._proto != que->proto) {
+            DEBUG("IP queue: dropping packet wrong protocol is %d should be %d \n", 
+                  header->ip._proto, que->proto);
+	   
+            print_buffer(que, ((uint8_t*) que->regions[*rid % MAX_NUM_REGIONS].va) + *offset + 
+			 *valid_data + 128, *valid_length);
+            err = que->rx->f.enq(que->rx, *rid, *offset, *length, *valid_data, 
+			    	 *valid_length, NETIF_RXFLAG);
+            return CLEANQ_ERR_IP_WRONG_PROTO;
+	}
 #ifdef DEBUG_ENABLED
         print_buffer(que, que->regions[*rid % MAX_NUM_REGIONS].va + *offset, *valid_length);
 #endif
@@ -341,10 +352,11 @@ errval_t ip_create(struct ip_q** q, struct cleanq* nic_rx, struct cleanq* nic_tx
     que->my_q.f.enq = ip_enqueue;
     que->my_q.f.deq = ip_dequeue;
     *q = que;
-
+	
     switch(prot) {
         case UDP_PROT:
             que->hdr_len = IP_HLEN + sizeof(struct udp_hdr);
+	    que->proto = IP_PROTO_UDP;
             break;
         case TCP_PROT:
             // TODO

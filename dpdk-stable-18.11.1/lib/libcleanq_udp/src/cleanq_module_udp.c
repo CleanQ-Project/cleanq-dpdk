@@ -164,8 +164,9 @@ static errval_t udp_dequeue(struct cleanq* q, regionid_t* rid, genoffset_t* offs
         if (header->dest != que->header.dest) {
             printf("UDP queue: dropping packet, wrong port %d %d \n",
                    header->dest, que->header.dest);
-            err = que->q->f.enq(que->q, *rid, *offset, *length, 0, 0, NETIF_RXFLAG);
-            return -1;
+            err = que->q->f.enq(que->q, *rid, *offset, *length, *valid_data, 
+			    	*valid_length, NETIF_RXFLAG);
+            return CLEANQ_ERR_UDP_WRONG_PORT;
         }
         
 #ifdef DEBUG_ENABLED
