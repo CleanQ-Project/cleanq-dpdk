@@ -66,6 +66,7 @@ struct cleanq* cleanq_udp;
 
 static struct cleanq* nic_rx;
 static struct cleanq* nic_tx;
+static uint64_t num_pkt = 0;
 #endif
 /* basicfwd.c: Basic DPDK skeleton forwarding example. */
 
@@ -129,10 +130,9 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
         return retval;
 
     /* Display the port MAC address. */
-    struct ether_addr addr;
-    rte_eth_macaddr_get(port, &addr);
+    rte_eth_macaddr_get(port, &src_mac);
     char addr_string[ETHER_ADDR_FMT_SIZE];
-    ether_format_addr(addr_string, ETHER_ADDR_FMT_SIZE, &addr);
+    ether_format_addr(addr_string, ETHER_ADDR_FMT_SIZE, &src_mac);
     printf("Port %u MAC: %s\n", port, addr_string);
 
     /* Enable RX in promiscuous mode for the Ethernet device. */
@@ -255,7 +255,6 @@ lcore_main(void)
                 }
 
 		if (cqbuf.flags & NETIF_RXFLAG) {
-			printf("Received packet! \n");
 
 			cleanq_buf_to_mbuf(nic_rx, cqbuf, &rx_bufs[nb_rx]);
 
@@ -274,17 +273,26 @@ lcore_main(void)
 			);
 		}
 	    }
+
 #else
             const uint16_t nb_rx = rte_eth_rx_burst(port, 0, rx_bufs, BURST_SIZE);
 #endif
 
             if (unlikely(nb_rx == 0))
                 continue;
+
+	    num_pkt += nb_rx;
+
+	    if ((num_pkt % 1000000) == 0) {
+	    	printf("Received %lu packets!\n", num_pkt);
+	    }
 #ifdef CLEANQ_STACK
             if (nb_rx > 0) {
-		for (uint16_t i = 0; i < nb_rx; i++) {
+		uint16_t i = 0;
+		for (; i < nb_rx; i++) {
 
 		    mbuf_to_cleanq_buf(cleanq_udp, rx_bufs[i], &cqbuf);
+                    cqbuf.flags = 0;
                     cqbuf.flags |= NETIF_TXFLAG;
 
 		    err = cleanq_enqueue(cleanq_udp, cqbuf.rid, cqbuf.offset,
@@ -296,8 +304,9 @@ lcore_main(void)
 			}
 			break;
 		    }
-		    printf("Packet %d of %d sent!", i, nb_rx);
 		}
+
+		//printf("Packet %d packet sent! \n", i);
             }
 	    nb_rx = 0;
 #else
@@ -415,7 +424,7 @@ lcore_main(void)
 
                 LOG(NOTICE, "%"PRIu16" packets sent over port %"PRIu16"\n", nb_tx, port);
 
-                /& Free any unsent packets. 
+                // Free any unsent packets. 
                 if (unlikely(nb_tx < nb_to_send)) {
                     for (uint16_t buf = nb_tx; buf < nb_to_send; buf++) {
                         rte_pktmbuf_free(tx_bufs[buf]);
