@@ -52,6 +52,7 @@ struct ip_q {
     struct region_vaddr regions[MAX_NUM_REGIONS];
     uint16_t hdr_len;
     uint8_t proto;
+    uint64_t pkt_id;	
 
     const char* name;
 #ifdef BENCH
@@ -153,8 +154,11 @@ static errval_t ip_enqueue(struct cleanq* q, regionid_t rid,
         assert(valid_length <= 1500);    
         //que->header.ip._len = htons(valid_length + IP_HLEN);   
         que->header.ip._len = htons(valid_length - ETH_HLEN);   
+    	que->pkt_id++;
+    	que->header.ip._id = htons(que->pkt_id);
         que->header.ip._chksum = 0;
         que->header.ip._chksum = rte_ipv4_cksum((struct ipv4_hdr*) &que->header.ip);
+
 
         assert(que->regions[rid % MAX_NUM_REGIONS].va != NULL);
 
@@ -341,7 +345,8 @@ errval_t ip_create(struct ip_q** q, struct cleanq* nic_rx, struct cleanq* nic_tx
     // IP
     que->header.ip._v_hl = 69;
     IPH_TOS_SET(&que->header.ip, 0x0);
-    IPH_ID_SET(&que->header.ip, htons(0x3));
+    que->pkt_id = 3;
+    que->header.ip._id = htons(0x3);
     que->header.ip._offset = htons(IP_DF); // htons?
     que->header.ip._ttl = 0x40; // 64
     que->header.ip.src = src_ip;
