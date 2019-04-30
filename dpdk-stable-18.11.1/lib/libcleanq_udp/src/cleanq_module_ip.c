@@ -152,7 +152,7 @@ static errval_t ip_enqueue(struct cleanq* q, regionid_t rid,
               rid, offset, length, valid_length, valid_data);
         assert(valid_length <= 1500);    
         //que->header.ip._len = htons(valid_length + IP_HLEN);   
-        que->header.ip._len = htons(valid_length - UDP_HLEN - ETH_HLEN);   
+        que->header.ip._len = htons(valid_length - ETH_HLEN);   
         que->header.ip._chksum = 0;
         que->header.ip._chksum = rte_ipv4_cksum((struct ipv4_hdr*) &que->header.ip);
 
