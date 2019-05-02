@@ -16,6 +16,7 @@
 #define NETIF_RXFLAG (1UL << 28)
 #define NETIF_TXFLAG (1UL << 29)
 #define NETIF_TXFLAG_LAST (1UL << 30)
+#define PORT_BITS 16 // first 16 bits are the port to send to
 
 struct udp_q;
 struct bench_ctl;

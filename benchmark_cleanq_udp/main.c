@@ -235,6 +235,7 @@ lcore_main(void)
 
             /* Get burst of RX packets. */
             struct rte_mbuf *rx_bufs[BURST_SIZE];
+   	    uint64_t flags[BURST_SIZE];
 
 #ifdef CLEANQ_STACK
 	    struct cleanq_buf cqbuf;
@@ -249,13 +250,12 @@ lcore_main(void)
                 if (err_is_fail(err)) {
 		    if ((err != CLEANQ_ERR_IP_WRONG_IP) && 
 		         err != CLEANQ_ERR_QUEUE_EMPTY) {
-            		printf("Other error %d \n", err);
 		    }
                     break;
                 }
 
 		if (cqbuf.flags & NETIF_RXFLAG) {
-
+			flags[nb_rx] = cqbuf.flags;
 			cleanq_buf_to_mbuf(nic_rx, cqbuf, &rx_bufs[nb_rx]);
 
 			nb_rx++;
@@ -292,7 +292,8 @@ lcore_main(void)
 		for (; i < nb_rx; i++) {
 
 		    mbuf_to_cleanq_buf(cleanq_udp, rx_bufs[i], &cqbuf);
-                    cqbuf.flags = 0;
+		    cqbuf.flags = 0;
+                    cqbuf.flags = flags[i] & 0xFFFF; // take port bits
                     cqbuf.flags |= NETIF_TXFLAG;
 
 		    err = cleanq_enqueue(cleanq_udp, cqbuf.rid, cqbuf.offset,

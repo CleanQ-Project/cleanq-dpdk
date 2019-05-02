@@ -42,6 +42,8 @@ struct udp_q {
     struct cleanq my_q;
     struct cleanq* q;
     struct udp_hdr header; // can fill in this header and reuse it by copying
+    uint16_t dst_port;
+    uint16_t src_port;
     struct region_vaddr regions[MAX_NUM_REGIONS];
 };
 
@@ -115,6 +117,7 @@ static errval_t udp_enqueue(struct cleanq* q, regionid_t rid,
         assert(valid_length <= 1500);    
         //que->header.len = htons(valid_length + UDP_HLEN);
         que->header.len = htons(valid_length - IP_HLEN - ETH_HLEN);
+    	que->header.dest = flags & 0xFFFF;
 
         assert(que->regions[rid % MAX_NUM_REGIONS].va != NULL);
 
@@ -161,9 +164,9 @@ static errval_t udp_dequeue(struct cleanq* q, regionid_t* rid, genoffset_t* offs
                                  *offset + *valid_data + IP_HLEN + ETH_HLEN + 128);
  
         // Correct port for this queue?
-        if (header->dest != que->header.dest) {
+        if (header->dest != htons(que->dst_port)) {
             printf("UDP queue: dropping packet, wrong port %d %d \n",
-                   header->dest, que->header.dest);
+                   header->dest, que->dst_port);
             err = que->q->f.enq(que->q, *rid, *offset, *length, *valid_data, 
 			    	*valid_length, NETIF_RXFLAG);
             return CLEANQ_ERR_UDP_WRONG_PORT;
@@ -173,6 +176,7 @@ static errval_t udp_dequeue(struct cleanq* q, regionid_t* rid, genoffset_t* offs
         print_buffer((uint8_t*) que->regions[*rid % MAX_NUM_REGIONS].va + *offset, *valid_length);
 #endif
 
+	*flags |= header->src;
         //*valid_length = ntohs(header->len) - UDP_HLEN;
         //*valid_data += UDP_HLEN;
         //print_buffer(que, que->regions[*rid % MAX_NUM_REGIONS].va + *offset+ *valid_data, *valid_length);
@@ -217,6 +221,8 @@ errval_t udp_create(struct udp_q** q, struct cleanq* nic_rx, struct cleanq* nic_
     // UDP fields
     que->header.src = htons(src_port);
     que->header.dest = htons(dst_port);
+    que->src_port = src_port;
+    que->dst_port = dst_port;
     que->header.chksum = 0x0;
 
     que->my_q.f.reg = udp_register;
