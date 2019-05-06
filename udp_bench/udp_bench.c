@@ -47,6 +47,7 @@ static double bench_run_time;
 static int buf_size;
 static char* ip;
 static uint32_t max_pkts_in_flight = 1;
+static uint32_t rounds;
 
 // data of machine we send to
 //static struct sockaddr_in clientaddr;
@@ -163,20 +164,23 @@ int main(int argc, char **argv)
     /* 
     * check command line arguments 
     */
-    if (argc < 8) {
+    if (argc < 10) {
         fprintf(stderr, "usage: %s <num clients> <interface> <port> <server IP>" 
                         "<mesure time (in seconds)> <max packets in flight>"
-                        "<buffer size> \n", argv[0]);
+                        "<buffer size> <number of rounds> <ouput file name>\n",
+                         argv[0]);
         exit(1);
     }
 
     num_clients = atoi(argv[1]);
-    if_name = argv[2];
-    portno = atoi(argv[3]);
-    ip = argv[4];
-    bench_run_time = atof(argv[5]);
-    max_pkts_in_flight = atoi(argv[6]);
-    buf_size = atoi(argv[7]);
+    if_name = argv[2]; // local interface name
+    portno = atoi(argv[3]); // server port number
+    ip = argv[4]; // server ip
+    bench_run_time = atof(argv[5]); // run time of one round
+    max_pkts_in_flight = atoi(argv[6]); // number of packets in flight
+    buf_size = atoi(argv[7]); // buffer size
+    rounds = atoi(argv[8]); // how many measurments of "bench_run_time" seconds
+    char* out_file_name = argv[9];
 
     if ((num_clients >= 1) && (num_clients <= 100)) {
         pkts_per_s = (double*) calloc(num_clients, sizeof(double));
@@ -195,34 +199,61 @@ int main(int argc, char **argv)
 
     gettimeofday(&st, NULL);
     uint32_t num_cores = sysconf(_SC_NPROCESSORS_ONLN);
-    for (uint64_t i = 0; i < (uint32_t) num_clients; i++) { 
-
-	cpu_set_t cpuset;
-        CPU_ZERO(&cpuset);
-        CPU_SET(i % num_cores, &cpuset);
-
-        pthread_attr_t attr;
-        pthread_attr_init(&attr);
-        pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpuset);
-	
-        int ret = pthread_create(&threads[i], &attr, client_func, (void*) i);
-        assert(ret == 0);
-
-    }
-    
-    gettimeofday(&st, NULL);
-
-    for (int i = 0; i < num_clients; i++) {
-        pthread_join(threads[i], NULL);
-    }
 
     double tot_pkts_per_s = 0;
-    for (int i = 0; i < num_clients; i++) {
-        tot_pkts_per_s += pkts_per_s[i];
+    FILE* file = fopen(out_file_name, "ab+");
+    if (file == NULL) {
+        fprintf(stderr, "Output file is invalid %s\n", out_file_name);
+        exit(1);
     }
+    fprintf(file, "############################################################"
+                  "#################### \n");
+    fprintf(file, "#Config: num_clients %d, if_name %s, portno %d, ip %s, \n" 
+                  "#        bench_run_time %.2f (s), max_pkts_in_flight %d, buf_size %d,\n" 
+                  "#        rounds %d, outfile %s \n",
+            num_clients, if_name, portno, ip, bench_run_time, max_pkts_in_flight, 
+            buf_size, rounds, out_file_name);
+    fprintf(file, "Round \t | Pkts/s \t\t\t| Mbit/s incl. header \t\t| Mbit/s payload\n");
+    for(uint32_t rnd = 0; rnd < rounds; rnd++) {
+        for (uint64_t i = 0; i < (uint32_t) num_clients; i++) { 
 
-    printf("Mbit/s %f including header \n", ((tot_pkts_per_s)*(buf_size+42)*8)/(1000*1000));
-    printf("Mbit/s %f only payload \n", ((tot_pkts_per_s)*buf_size*8)/(1000*1000));
-    printf("Pkts/s %f \n", tot_pkts_per_s);
+        cpu_set_t cpuset;
+            CPU_ZERO(&cpuset);
+            CPU_SET(i % num_cores, &cpuset);
+
+            pthread_attr_t attr;
+            pthread_attr_init(&attr);
+            pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpuset);
+        
+            int ret = pthread_create(&threads[i], &attr, client_func, (void*) i);
+            assert(ret == 0);
+
+        }
+        
+        gettimeofday(&st, NULL);
+
+        for (int i = 0; i < num_clients; i++) {
+            pthread_join(threads[i], NULL);
+        }
+    
+        tot_pkts_per_s = 0;
+        for (int i = 0; i < num_clients; i++) {
+            tot_pkts_per_s += pkts_per_s[i];
+        }
+
+        printf("Mbit/s %f including header \n", ((tot_pkts_per_s)*(buf_size+42)*8)/(1000*1000));
+        printf("Mbit/s %f only payload \n", ((tot_pkts_per_s)*buf_size*8)/(1000*1000));
+        printf("Pkts/s %f \n", tot_pkts_per_s);
+        fprintf(file, "%d \t\t | %.2f \t\t| %.2f \t\t\t\t\t| %.2f\n", rnd, 
+                tot_pkts_per_s,
+                ((tot_pkts_per_s)*(buf_size+42)*8)/(1000*1000), 
+                ((tot_pkts_per_s)*buf_size*8)/(1000*1000));
+    }
+    fprintf(file, "############################################################"
+                  "#################### \n");
+
+    fflush(file);
+    fclose(file);
+
     return 0;
 }
