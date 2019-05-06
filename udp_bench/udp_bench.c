@@ -109,7 +109,7 @@ static void *client_func(void *arg)
     // setup socket including binding to interface
     sockfd = setup_socket();
  
-    printf("Thread %lu started using sockfd %d \n", t_id, sockfd);  
+    //printf("Thread %lu started using sockfd %d \n", t_id, sockfd);  
     //timersub(tstamp, &oldstamp, &diff);
     while (time_s < bench_run_time) {   
 
@@ -152,10 +152,10 @@ static void *client_func(void *arg)
         time_s = ((double)diff.tv_sec * 1000000 + (double)diff.tv_usec)/1000000;
     }
 
+    close(sockfd);
     run_times[t_id] = time_s; 
     pkts_per_s[t_id] = total_pkts/time_s;
-    printf("Thread %lu exit pkts recvd %lu \n", t_id,
- 	   total_pkts);  
+    //printf("Thread %lu exit pkts recvd %lu \n", t_id, total_pkts);  
     return NULL;
 }
 
