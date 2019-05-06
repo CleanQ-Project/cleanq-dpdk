@@ -151,7 +151,6 @@ static errval_t ip_enqueue(struct cleanq* q, regionid_t rid,
         
         DEBUG("TX rid: %d offset %ld length %ld valid_length %ld valid_ata %ld \n", 
               rid, offset, length, valid_length, valid_data);
-        assert(valid_length <= 1500);    
         //que->header.ip._len = htons(valid_length + IP_HLEN);   
         que->header.ip._len = htons(valid_length - ETH_HLEN);   
     	que->pkt_id++;
@@ -256,17 +255,18 @@ static errval_t ip_dequeue(struct cleanq* q, regionid_t* rid, genoffset_t* offse
                                          *offset + *valid_data + 128);
  
         // IP checksum
-	/*
-	uint16_t chksum = rte_ipv4_cksum((const struct ipv4_hdr *) &header->ip);
+	uint16_t chksum = header->ip._chksum;
+	header->ip._chksum = 0;
+	header->ip._chksum = rte_ipv4_cksum((const struct ipv4_hdr *) &header->ip);
 	//uint16_t chksum = inet_chksum(&(header->ip), IP_HLEN);
         if (header->ip._chksum != chksum) {
-            DEBUG("IP queue: dropping packet wrong checksum is %x should be %x\n",
+            printf("IP queue: dropping packet wrong checksum is %x should be %x\n",
 	          header->ip._chksum, chksum);
             err = que->rx->f.enq(que->rx, *rid, *offset, *length, *valid_data, *valid_length, 
                                  NETIF_RXFLAG);
             return CLEANQ_ERR_IP_CHKSUM;
         }
-	*/
+
         // Correct ip for this queue?
         if (header->ip.src != que->header.ip.dest) {
             DEBUG("IP queue: dropping packet, wrong IP is %d should be %d\n",

@@ -114,7 +114,6 @@ static errval_t udp_enqueue(struct cleanq* q, regionid_t rid,
         
         DEBUG("TX rid: %d offset %ld length %ld valid_length %ld valid_data %ld \n", rid, offset, 
               length, valid_length, valid_data);
-        assert(valid_length <= 1500);    
         //que->header.len = htons(valid_length + UDP_HLEN);
         que->header.len = htons(valid_length - IP_HLEN - ETH_HLEN);
     	que->header.dest = flags & 0xFFFF;
