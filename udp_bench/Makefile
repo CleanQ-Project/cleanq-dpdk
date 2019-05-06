@@ -1,4 +1,4 @@
-all: clean objs udp_bench
+all: clean objs udp_bench udp_bench_open
 
 C:=g++
 MAKEDEPEND:=makedepend -Y
@@ -30,12 +30,15 @@ objs: $(OBJ_FILES)
 clean:
 	-rm -f *.o
 	-rm -f *~; rm udp_bench
+	-rm -f *~; rm udp_bench_open
 
 clobber:
 	-rm -f *.o
 	-rm -f *~
 
 udp_bench: ;$(C) $(CFLAGS) $(LIB) $(INC_DIR) $(c_FILES) -o udp_bench $(CLIBS)
+
+udp_bench_open: ;$(C) $(CFLAGS) $(LIB) $(INC_DIR) udp_bench_open.c -o udp_bench_open $(CLIBS)
 
 depend:
 	$(MAKEDEPEND) $(INCS) $(SINCS) $(C_FILES)
