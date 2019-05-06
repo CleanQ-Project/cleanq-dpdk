@@ -215,6 +215,10 @@ int main(int argc, char **argv)
             buf_size, rounds, out_file_name);
     fprintf(file, "Round \t | Pkts/s \t\t\t| Mbit/s incl. header \t\t| Mbit/s payload\n");
     for(uint32_t rnd = 0; rnd < rounds; rnd++) {
+
+        memset(threads, 0, num_clients*sizeof(pthread_t));
+        gettimeofday(&st, NULL);
+        
         for (uint64_t i = 0; i < (uint32_t) num_clients; i++) { 
 
         cpu_set_t cpuset;
@@ -248,7 +252,10 @@ int main(int argc, char **argv)
                 tot_pkts_per_s,
                 ((tot_pkts_per_s)*(buf_size+42)*8)/(1000*1000), 
                 ((tot_pkts_per_s)*buf_size*8)/(1000*1000));
+
+        sleep(5);
     }
+
     fprintf(file, "############################################################"
                   "#################### \n");
 
