@@ -260,7 +260,7 @@ static errval_t ip_dequeue(struct cleanq* q, regionid_t* rid, genoffset_t* offse
 	header->ip._chksum = rte_ipv4_cksum((const struct ipv4_hdr *) &header->ip);
 	//uint16_t chksum = inet_chksum(&(header->ip), IP_HLEN);
         if (header->ip._chksum != chksum) {
-            printf("IP queue: dropping packet wrong checksum is %x should be %x\n",
+            DEBUG("IP queue: dropping packet wrong checksum is %x should be %x\n",
 	          header->ip._chksum, chksum);
             err = que->rx->f.enq(que->rx, *rid, *offset, *length, *valid_data, *valid_length, 
                                  NETIF_RXFLAG);
