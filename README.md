@@ -1,6 +1,7 @@
 # CleanQ for Linux
 
-This is the public repository of the CleanQ Linux implementation
+This is the public repository of the CleanQ Linux implementation.
+This implementation requires a Intel 82599 based NIC. 
 
 
 ## License
@@ -32,12 +33,18 @@ cd dpdk-stable-18.11.1
 
 make config install T=x86_64-native-linuxapp-gcc 
 
+in the x86_64-native-linuxapp-gcc directory modify the .config file and add
+CONFIG_RTE_LIBCLEANQ=y
+
+then recompile
+
+make T=x86_64-native-linuxapp-gcc 
 
 **Build applications**
 
 export RTE_SDK=< path to dpdk-stable-18.11.1>
 
-cd benchmark_cleanq
+cd benchmark_cleanq_udp
 
 make
 
@@ -48,3 +55,19 @@ bash usertools/dpdk-setup.sh
 Press 21/22 to set up hugepage mappings for non-NUMA or NUMA systems
 
 Press 18 to insert IGB UIO module. 
+
+Press 24 to bind device to IGB UIO module
+
+**Start application**
+
+The application (benchmark_cleanq_udp) is rather crude and we did not implement
+ARP functionality. Consequently src/dst IP and destination MAC are hardcoded in
+the application. 
+
+1. Adapt src_ip_str/dst_ip_str and dst_mac accordingly
+2. define/undefine #CLEANQ_STACK. if CLEANQ_STACK is defined the small UDP stack 
+   is used instead of the DPDK echo implementation. The CleanQ stack only works
+   in combination with DPDK compiled with CleanQ enabled. 
+
+recompile (make) the application and run it. 
+
