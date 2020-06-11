@@ -235,6 +235,7 @@ igbuio_pci_enable_interrupts(struct rte_uio_pci_dev *udev)
 			break;
 		}
 #endif
+        /* FALLTHRU */
 
 	/* fall back to MSI */
 	case RTE_INTR_MODE_MSI:
@@ -255,6 +256,8 @@ igbuio_pci_enable_interrupts(struct rte_uio_pci_dev *udev)
 			break;
 		}
 #endif
+
+    /* FALLTHRU */
 	/* fall back to INTX */
 	case RTE_INTR_MODE_LEGACY:
 		if (pci_intx_mask_supported(udev->pdev)) {
@@ -265,6 +268,7 @@ igbuio_pci_enable_interrupts(struct rte_uio_pci_dev *udev)
 			break;
 		}
 		dev_notice(&udev->pdev->dev, "PCI INTX mask not supported\n");
+    /* FALLTHRU */
 	/* fall back to no IRQ */
 	case RTE_INTR_MODE_NONE:
 		udev->mode = RTE_INTR_MODE_NONE;
