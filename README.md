@@ -1,4 +1,4 @@
-# CleanQ for Linux
+# CleanQ DKDK
 
 This is the CleanQ DPDK respository
 
