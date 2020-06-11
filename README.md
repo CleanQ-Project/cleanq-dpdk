@@ -33,12 +33,14 @@ cd dpdk-stable-18.11.1
 
 make config install T=x86_64-native-linuxapp-gcc 
 
-in the x86_64-native-linuxapp-gcc directory modify the .config file and add
+In both x86_64-native-linuxapp-gcc/.config and config/common_linuxapp add
 CONFIG_RTE_LIBCLEANQ=y
 
 then recompile
 
 make T=x86_64-native-linuxapp-gcc 
+
+To run DPDK withouth CleanQ for comparison simply remove the CONFIG_RTE_LIBCLEANQ
 
 **Build applications**
 
