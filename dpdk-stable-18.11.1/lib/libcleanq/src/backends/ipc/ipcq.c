@@ -72,7 +72,6 @@ struct ipcq {
 };
 
 struct ipcq_endpoint_state {
-    bool exp_done;
     char* name;
     struct ipcq_func_pointer f;
     struct ipcq* head;

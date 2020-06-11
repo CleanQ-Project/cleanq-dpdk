@@ -175,17 +175,6 @@ errval_t cleanq_deregister(struct cleanq *q,
 errval_t cleanq_notify(struct cleanq *q);
 
 /**
- * @brief Enforce coherency between of the buffers in the queue
- *        by either flushing the cache or invalidating it
- *
- * @param q      The device queue to call the operation on
- *
- * @returns error on failure or SYS_ERR_OK on success
- *
- */
-errval_t cleanq_prepare(struct cleanq *q);
-
-/**
  * @brief Send a control message to the device queue
  *
  * @param q          The device queue to call the operation on

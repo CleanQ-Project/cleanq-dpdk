@@ -22,8 +22,6 @@
   * @brief creates a queue 
   *
   * @param q             Return pointer to the cleanq (handle)
-  * @param exp           If we keep track of no longer owned buffers
-  *                      or buffers that we own         
   *
   * @returns error on failure or SYS_ERR_OK on success
   */

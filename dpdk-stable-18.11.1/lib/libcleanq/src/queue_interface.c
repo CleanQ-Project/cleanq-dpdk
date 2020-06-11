@@ -286,19 +286,6 @@ errval_t cleanq_notify(struct cleanq *q)
     return err;
 }
 
-/**
- * @brief Enforce coherency between of the buffers in the queue
- *        by either flushing the cache or invalidating it
- *
- * @param q      The device queue to call the operation on
- *
- * @returns error on failure or CLEANQ_ERR_OK on success
- *
- */
-errval_t cleanq_prepare(struct cleanq *q)
-{
-    return CLEANQ_ERR_OK;
-}
 
 /**
  * @brief Send a control message to the device queue
@@ -335,12 +322,12 @@ errval_t cleanq_destroy(struct cleanq *q)
 {
     errval_t err;
 
-    err = region_pool_destroy(q->pool);
+    err = q->f.destroy(q);
     if (err_is_fail(err)) {
         return err;
     }
 
-    return q->f.destroy(q);
+    return region_pool_destroy(q->pool);
 }
 
 
